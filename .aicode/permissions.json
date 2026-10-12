@@ -1,0 +1,23 @@
+{
+    "permissions": {
+        "allow": [
+            "writeFile",
+            "Bash(mkdir)",
+            "planMode",
+            "editFile",
+            "Bash(cd)",
+            "Bash(git clone)",
+            "Bash(1)",
+            "Bash(tail)",
+            "Bash(ls)",
+            "Bash(echo)",
+            "Bash(find)",
+            "Bash(head)",
+            "Bash(cat)",
+            "Bash(xargs)",
+            "Bash(sort)",
+            "Bash(git)"
+        ],
+        "deny": []
+    }
+}

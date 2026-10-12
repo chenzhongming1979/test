@@ -1,0 +1,30 @@
+-- AutoScript 自动生成
+-- 目标: {{ meta.goal }}
+-- 生成时间: {{ meta.generated_at }}
+
+local taps = {}
+
+{% for m in modules %}
+{% if m.bracket %}taps["{{ m.name }}"] = {% else %}taps.{{ m.name }} = {% endif %}{
+{% if m.kind == 'popup' %}    循环次数 = {{ m.loop_count }},
+    截图至内存 = true,
+    超时时间 = {{ m.timeout_ms }},
+{% elif m.kind == 'exit' %}    超时时间 = {{ m.timeout_ms }},
+{% else %}    超时时间 = {{ m.timeout_ms }},
+    无特征次数 = {{ m.no_feature_count }},
+{% if m.no_feature_run %}    无特征运行 = "{{ m.no_feature_run }}",
+{% endif %}{% if m.out_count %}    outCount = {{ m.out_count }},
+{% endif %}{% if m.loop_count is not none %}    循环次数 = {{ m.loop_count }},
+{% endif %}{% endif %}{% for f in m.features %}    {"{{ f.name }}", {{ f.priority }}, ff="{{ f.ff }}", p="{{ f.ps_param }}"{% if f.big_count %}, bigCount={{ f.big_count }}{% endif %}, degree={{ f.degree }}{% if f.out %}, out=true{% endif %}{% if f.next_method %}, 运行后方法="{{ f.next_method }}"{% endif %}{% if f.not_fun %}, notFun="{{ f.not_fun }}"{% endif %}{% if f.wait_out %}, waitOut={{ f.wait_out }}{% endif %}{% if f.mathch_check %}, mathchCheck=true{% endif %}{% if f.exec_cond %}, 执行条件={{ f.exec_cond }}{% endif %}{% if f.var_assign %}, 变量赋值={{ f.var_assign }}{% endif %}{% if f.is_click is not none %}, isClick={{ 'true' if f.is_click else 'false' }}{% endif %}{% if f.wait is not none %}, wait={{ f.wait }}{% endif %}{% if f.todo %} -- TODO 需人工补特征{% endif %}},
+{% endfor %}}
+
+{% endfor %}{% if task_list %}taps["任务列表"] = {
+{% for t in task_list %}
+{% if t.kind == 'disabled' %}    --{{ "{" }}"{{ t.name }}", 5, ff="nil", 任务参数={{ t.params_str }}, isClick=false, wait=0},
+{% elif t.kind == 'light' %}    {"{{ t.name }}", 5, ff="ps", 任务参数={{ t.params_str }}{% if t.exec_cond %}, 执行条件={{ t.exec_cond }}{% endif %}{% if t.var_assign %}, 变量赋值={{ t.var_assign }}{% endif %}, p="{{ t.ps_param }}", degree=0.9, isClick=true, wait=0},
+{% else %}    {"{{ t.name }}", 5, ff="nil", 任务参数={{ t.params_str }}, isClick=false, wait=0},
+{% endif %}
+{% endfor %}}
+
+{% endif %}{% for a in meta.todo_anomalies %}-- TODO 需人工处理: 状态{{ a.state_id }} {{ a.type }}
+{% endfor %}return taps

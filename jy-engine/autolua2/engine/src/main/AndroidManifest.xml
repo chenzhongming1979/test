@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.SYSTEM_OVERLAY_WINDOW" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+
+    <!-- ===== 输入注入降级链追加开始（只追加，不改现有节点） ===== -->
+    <!-- Shizuku api 依赖最低 SDK 23；声明 overrideLibrary 以兼容本库 minSdk 22 -->
+    <uses-sdk
+        android:minSdkVersion="22"
+        tools:overrideLibrary="rikka.shizuku,rikka.shizuku.api,rikka.shizuku.provider,rikka.shizuku.shared,rikka.shizuku.aidl" />
+
+    <application>
+
+        <!-- Shizuku Provider（通道 C 必需）。${applicationId} 由 manifest merger 替换为宿主 applicationId -->
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:multiprocess="false"
+            android:enabled="true"
+            android:exported="true"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
+
+        <!-- Shizuku API 版本声明 -->
+        <meta-data
+            android:name="rikka.shizuku.api_version"
+            android:value="13" />
+
+        <!-- 无障碍服务（方案三/方案二通道 A）：手势队列 + obtainXml 整树 dump 宿主 -->
+        <service
+            android:name="com.autolua.engine.accessibility.AutoLuaAccessibilityService"
+            android:exported="true"
+            android:label="AutoLua Accessibility"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <!-- 模拟输入法通道（方案五）：自研 IME，接收同包广播经 InputConnection 注入文本/键码 -->
+        <service
+            android:name="com.autolua.engine.inputmethod.AutoLuaInputMethodService"
+            android:exported="true"
+            android:label="AutoLua IME"
+            android:permission="android.permission.BIND_INPUT_METHOD">
+            <intent-filter>
+                <action android:name="android.view.InputMethod" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.view.im"
+                android:resource="@xml/method" />
+        </service>
+
+        <!-- obtainXml 整树 dump 跨进程 AIDL 服务端（IAuxDumpService）：
+             与无障碍服务同进程；框架 AccessibilityService.onBind 为 final，无法在
+             AutoLuaAccessibilityService 内挂载 binder，故由本独立 Service 承载 action -->
+        <service
+            android:name="com.autolua.engine.accessibility.AuxDumpService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.autolua.engine.AUX_DUMP" />
+            </intent-filter>
+        </service>
+
+        <!-- 截图管线（方案一 P0）：MediaProjection 常驻采集前台服务；
+             附挂 IScreenShareService（共享内存 fd 跨进程服务端，action SCREEN_SHARE） -->
+        <service
+            android:name="com.autolua.engine.display.projection.CaptureScreenService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection"
+            android:configChanges="screenSize|orientation|keyboardHidden">
+            <intent-filter>
+                <action android:name="com.autolua.engine.SCREEN_SHARE" />
+            </intent-filter>
+        </service>
+
+    </application>
+    <!-- ===== 输入注入降级链追加结束 ===== -->
+
+    <!-- ===== 截图管线追加开始（只追加，不改现有节点） ===== -->
+    <!-- 前台服务基础权限（API 28+ FGS 必需） -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- 投屏采集前台服务权限（2.4-⑥：API 34+ 运行时检查） -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <!-- ===== 截图管线追加结束 ===== -->
+</manifest>

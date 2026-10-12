@@ -1,0 +1,12 @@
+# design_resolution = 游戏实际运行方向的分辨率（龙迹之城启动自转横屏 → 1280x720）
+devices:
+  - name: "默认设备"
+    serial: "192.168.1.99:5555"
+    type: "device"
+    design_resolution: [1280, 720]
+  - name: "雷电模拟器"
+    serial: "emulator-5558"
+    type: "emulator"
+    design_resolution: [1280, 720]
+
+default_device: "默认设备"

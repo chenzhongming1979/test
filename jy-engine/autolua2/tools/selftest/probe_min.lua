@@ -1,0 +1,13 @@
+-- minimal canary: is getRotation itself the hang point?
+print("A: start")
+keepScreen()
+print("B: keepScreen ok")
+local w, h = getBaseSize()
+print("C: getBaseSize ok " .. tostring(w) .. "x" .. tostring(h))
+local r = getRotation()
+print("D: getRotation ok " .. tostring(r))
+local icd = isChangeDirection()
+print("E: isChangeDirection ok " .. tostring(icd))
+local c = getColor(0, 0)
+print("F: getColor ok " .. tostring(c))
+print("Z: all done")

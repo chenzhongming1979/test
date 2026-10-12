@@ -1,0 +1,9 @@
+{
+  "id": "com.autolua.plugin.demoapi",
+  "name": "Demo Lua API (plugin contributor)",
+  "version": "1.0.0",
+  "mainClass": "com.autolua.plugin.demoapi.DemoLuaApiPlugin",
+  "provides": ["demo"],
+  "minHostVersion": "0.0.0",
+  "sha256": "d483a3a70387b9dd50236f6a466b09a16ef80cbb16a6ec6334f56bf60d7a2fa4"
+}

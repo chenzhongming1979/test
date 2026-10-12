@@ -1,0 +1,7 @@
+{
+  "findMultiColor": "local x, y = findMultiColor({x1}, {y1}, {x2}, {y2}, {firstColor}, \"{offsetStr}\", {sim}{order})\n{x1},{y1}",
+  "isFeature": "local ok = isFeature({x}, {y}, \"0|0|{firstColor},{offsetStr}\", {sim})",
+  "cmpColor": "local ok = cmpColor({x}, {y}, {color}, {sim})",
+  "findColor": "local x, y = findColor({x1}, {y1}, {x2}, {y2}, {color}, {sim}{order})",
+  "findImage": "local ix, iy = findImage(\"{img}\", {sim}{order})"
+}

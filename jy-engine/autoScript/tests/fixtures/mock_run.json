@@ -1,0 +1,287 @@
+{
+  "run_id": "run_mock",
+  "goal": "自动刷火副本，刷完回城",
+  "device_id": "192.168.1.99:5555",
+  "resolution": [720, 1280],
+  "design_resolution": [720, 1280],
+  "status": "completed",
+  "start_time": 1789100000.0,
+  "end_time": 1789100600.0,
+  "states": [
+    {
+      "state_id": 0,
+      "scene_label": "主界面",
+      "description": "游戏主界面，底部有副本入口按钮",
+      "elements": [
+        {
+          "id": "elem_001",
+          "type": "button",
+          "text": "副本入口",
+          "bbox": [290, 1150, 420, 1260],
+          "center": [360, 1207],
+          "confidence": 0.95,
+          "is_primary": true,
+          "stable_points": [
+            {"x": 324, "y": 1207, "color": "837c75", "tolerance": "101010"},
+            {"x": 357, "y": 1205, "color": "f5e7ce", "tolerance": "101010"}
+          ]
+        },
+        {
+          "id": "elem_002",
+          "type": "button",
+          "text": "每日签到",
+          "bbox": [90, 990, 210, 1110],
+          "center": [150, 1050],
+          "confidence": 0.94,
+          "is_primary": false,
+          "stable_points": [
+            {"x": 150, "y": 1050, "color": "d4a94f", "tolerance": "101010"}
+          ]
+        }
+      ],
+      "texts": [{"text": "等级50", "bbox": [50, 30, 150, 60]}],
+      "phash": "a1b2c3d4e5f60718",
+      "screenshot": "screenshots/shot_000.png",
+      "resolution": [720, 1280],
+      "timestamp": 1789100010.5
+    },
+    {
+      "state_id": 1,
+      "scene_label": "副本选择",
+      "description": "副本选择列表，含火属性副本入口",
+      "elements": [
+        {
+          "id": "elem_101",
+          "type": "list_item",
+          "text": "火副",
+          "bbox": [500, 320, 640, 420],
+          "center": [563, 369],
+          "confidence": 0.93,
+          "is_primary": true,
+          "stable_points": [
+            {"x": 563, "y": 369, "color": "faf7e7", "tolerance": "101010"}
+          ]
+        },
+        {
+          "id": "elem_102",
+          "type": "button",
+          "text": "返回",
+          "bbox": [20, 40, 100, 100],
+          "center": [60, 70],
+          "confidence": 0.9,
+          "is_primary": false,
+          "stable_points": [
+            {"x": 60, "y": 70, "color": "2b2b2b", "tolerance": "101010"}
+          ]
+        }
+      ],
+      "texts": [{"text": "选择副本", "bbox": [300, 80, 420, 120]}],
+      "phash": "b2c3d4e5f6071801",
+      "screenshot": "screenshots/shot_001.png",
+      "resolution": [720, 1280],
+      "timestamp": 1789100060.2
+    },
+    {
+      "state_id": 2,
+      "scene_label": "战斗中",
+      "description": "副本战斗界面，右下攻击按钮，中部回城按钮",
+      "elements": [
+        {
+          "id": "elem_201",
+          "type": "button",
+          "text": "攻击",
+          "bbox": [160, 960, 260, 1070],
+          "center": [211, 1017],
+          "confidence": 0.96,
+          "is_primary": true,
+          "stable_points": [
+            {"x": 211, "y": 1017, "color": "1a65b7", "tolerance": "101010"}
+          ]
+        },
+        {
+          "id": "elem_202",
+          "type": "button",
+          "text": "回城",
+          "bbox": [300, 1050, 420, 1150],
+          "center": [360, 1100],
+          "confidence": 0.91,
+          "is_primary": false,
+          "stable_points": [
+            {"x": 360, "y": 1100, "color": "c8b28a", "tolerance": "101010"}
+          ]
+        }
+      ],
+      "texts": [{"text": "战斗中", "bbox": [320, 60, 400, 100]}],
+      "phash": "c3d4e5f607180102",
+      "screenshot": "screenshots/shot_002.png",
+      "resolution": [720, 1280],
+      "timestamp": 1789100120.8
+    },
+    {
+      "state_id": 3,
+      "scene_label": "签到页",
+      "description": "每日签到确认页，点击领取后关闭回主界面",
+      "elements": [
+        {
+          "id": "elem_301",
+          "type": "button",
+          "text": "领取奖励",
+          "bbox": [280, 600, 440, 700],
+          "center": [360, 650],
+          "confidence": 0.92,
+          "is_primary": true,
+          "stable_points": []
+        }
+      ],
+      "texts": [{"text": "签到成功", "bbox": [300, 300, 420, 360]}],
+      "phash": "d4e5f60718010203",
+      "screenshot": "screenshots/shot_003.png",
+      "resolution": [720, 1280],
+      "timestamp": 1789100560.0
+    },
+    {
+      "state_id": 4,
+      "scene_label": "战斗结算",
+      "description": "战斗结算界面，中部领奖按钮",
+      "elements": [
+        {
+          "id": "elem_401",
+          "type": "button",
+          "text": "领奖",
+          "bbox": [500, 900, 620, 980],
+          "center": [560, 940],
+          "confidence": 0.93,
+          "is_primary": true,
+          "stable_points": [
+            {"x": 560, "y": 940, "color": "ffd700", "tolerance": "101010"}
+          ]
+        }
+      ],
+      "texts": [{"text": "战斗胜利", "bbox": [300, 200, 420, 260]}],
+      "phash": "e5f6071801020304",
+      "screenshot": "screenshots/shot_004.png",
+      "resolution": [720, 1280],
+      "timestamp": 1789100450.0
+    }
+  ],
+  "transitions": [
+    {
+      "from_state": 0,
+      "to_state": 1,
+      "action": {"type": "click", "coord": [324, 1207], "reason": "点击副本入口进入副本选择"},
+      "success": true,
+      "duration_ms": 1200,
+      "timestamp": 1789100050.1
+    },
+    {
+      "from_state": 0,
+      "to_state": 3,
+      "action": {"type": "click", "coord": [150, 1050], "reason": "点击每日签到按钮"},
+      "success": true,
+      "duration_ms": 1500,
+      "timestamp": 1789100060.0
+    },
+    {
+      "from_state": 0,
+      "to_state": 2,
+      "action": {"type": "click", "coord": [330, 1210], "reason": "误触副本入口偏移点误入战斗（探索失败路径）"},
+      "success": false,
+      "duration_ms": 900,
+      "timestamp": 1789100070.0
+    },
+    {
+      "from_state": 1,
+      "to_state": 2,
+      "action": {"type": "click", "coord": [563, 369], "reason": "选择火属性副本并进入战斗"},
+      "success": true,
+      "duration_ms": 1500,
+      "timestamp": 1789100100.3
+    },
+    {
+      "from_state": 2,
+      "to_state": 2,
+      "action": {"type": "click", "coord": [211, 1017], "reason": "点击攻击开始战斗"},
+      "success": true,
+      "duration_ms": 8000,
+      "timestamp": 1789100150.4
+    },
+    {
+      "from_state": 2,
+      "to_state": 2,
+      "action": {"type": "click", "coord": [211, 1017], "reason": "攻击第二轮"},
+      "success": true,
+      "duration_ms": 8000,
+      "timestamp": 1789100200.5
+    },
+    {
+      "from_state": 2,
+      "to_state": 2,
+      "action": {"type": "click", "coord": [212, 1018], "reason": "攻击第三轮"},
+      "success": true,
+      "duration_ms": 8000,
+      "timestamp": 1789100250.6
+    },
+    {
+      "from_state": 2,
+      "to_state": 2,
+      "action": {"type": "click", "coord": [210, 1016], "reason": "攻击第四轮"},
+      "success": true,
+      "duration_ms": 8000,
+      "timestamp": 1789100300.7
+    },
+    {
+      "from_state": 2,
+      "to_state": 3,
+      "action": {"type": "click", "coord": [620, 180], "reason": "尝试点击右上角活动弹窗（探索）"},
+      "success": false,
+      "duration_ms": 900,
+      "timestamp": 1789100310.2
+    },
+    {
+      "from_state": 0,
+      "to_state": 1,
+      "action": {"type": "click", "coord": [330, 1180], "reason": "误点副本入口边缘（探索）"},
+      "success": false,
+      "duration_ms": 800,
+      "timestamp": 1789100055.8
+    },
+    {
+      "from_state": 2,
+      "to_state": 4,
+      "action": {"type": "wait", "coord": null, "expected_scene": "战斗结算", "reason": "等待战斗结束进入结算界面，连续确认3次"},
+      "success": true,
+      "duration_ms": 8000,
+      "verify_count": 3,
+      "timestamp": 1789100320.0
+    },
+    {
+      "from_state": 4,
+      "to_state": 0,
+      "action": {"type": "click", "coord": [560, 940], "reason": "点击领奖返回主界面"},
+      "success": true,
+      "duration_ms": 1000,
+      "timestamp": 1789100460.0
+    },
+    {
+      "from_state": 2,
+      "to_state": 0,
+      "action": {"type": "click", "coord": [360, 1100], "reason": "点击回城按钮返回主界面"},
+      "success": true,
+      "duration_ms": 2000,
+      "timestamp": 1789100500.9
+    }
+  ],
+  "task_tree": [
+    {"task_id": 0, "name": "进入副本", "target_scene": "副本选择", "is_repeatable": false, "repeat_count": 1, "current_repeat": 1, "status": "completed", "order": 0},
+    {"task_id": 1, "name": "选择火副", "target_scene": "战斗中", "is_repeatable": false, "repeat_count": 1, "current_repeat": 1, "status": "completed", "order": 1},
+    {"task_id": 2, "name": "刷完副本", "target_scene": "主界面", "is_repeatable": false, "repeat_count": 1, "current_repeat": 1, "status": "completed", "order": 2},
+    {"task_id": 3, "name": "每日签到", "target_scene": "签到页", "is_repeatable": false, "repeat_count": 1, "current_repeat": 1, "status": "completed", "order": 3, "run_once": true},
+    {"task_id": 4, "name": "刷火副双倍", "target_scene": "副本选择", "is_repeatable": false, "repeat_count": 1, "current_repeat": 1, "status": "completed", "order": 4},
+    {"task_id": 5, "name": "刷火副", "target_scene": "主界面", "is_repeatable": false, "repeat_count": 2, "current_repeat": 2, "status": "completed", "order": 5},
+    {"task_id": 6, "name": "已下线活动", "target_scene": "", "is_repeatable": false, "repeat_count": 1, "current_repeat": 0, "status": "skipped", "order": 6}
+  ],
+  "anomalies": [
+    {"state_id": 1, "type": "popup", "trigger_action": "click", "handled": true, "handle_method": "back", "screenshot": "screenshots/anomaly_001.png"},
+    {"state_id": 2, "type": "unknown", "trigger_action": "click", "handled": false, "handle_method": "", "screenshot": "screenshots/anomaly_002.png"}
+  ]
+}

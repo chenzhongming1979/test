@@ -1,0 +1,34 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+/libs
+# demo-ocr 插件构建中间产物（打包产物 demo-ocr-1.0.0.zip 保留在版本库）
+plugins/demo-ocr/build/
+# demo-luaapi 插件构建中间产物（打包产物 zip 保留在版本库）
+plugins/demo-luaapi/build/*
+!plugins/demo-luaapi/build/demo-luaapi-*.zip
+# ncnn-ocr 插件：第三方依赖/venv/中间产物不进库（模型 models/ 与打包产物 zip 保留）
+plugins/ncnn-ocr/third_party/
+plugins/ncnn-ocr/build/*
+!plugins/ncnn-ocr/build/ncnn-ocr-*.zip
+# 构建/联调临时日志与产物（仓库根与 tools）
+/*.log
+/*.txt
+/build/
+tools/selftest/*.log
+tools/selftest/*.txt
+tools/selftest/_selftest/
+# 贴牌打包流水线（pack.py 生成，进 APK assets，不入库）
+/brand_assets/

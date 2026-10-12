@@ -1,0 +1,394 @@
+{
+  "name": "autolua-vscode",
+  "displayName": "AutoLua Engine",
+  "description": "AutoLua 自动化引擎开发插件：连接设备、同步工程、调试运行、查看日志、打包安装",
+  "version": "0.5.11",
+  "publisher": "autolua",
+  "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://local/autolua-vscode"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "scripts": {
+    "compile": "node esbuild.js",
+    "watch": "node esbuild.js --watch",
+    "package": "vsce package --allow-missing-repository"
+  },
+  "dependencies": {
+    "ws": "^8.17.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/vscode": "^1.85.0",
+    "@types/ws": "^8.5.10",
+    "@vscode/vsce": "^3.9.2",
+    "esbuild": "^0.21.5",
+    "typescript": "^5.4.5"
+  },
+  "activationEvents": [],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "autolua",
+          "title": "AutoLua 设备",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "autolua": [
+        {
+          "id": "autoluaDevices",
+          "name": "设备列表"
+        },
+        {
+          "id": "autoluaApi",
+          "name": "函数文档"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "autoluaDevices",
+        "contents": "未发现设备。\n\n确认手机/模拟器与本机网络互通、App 内 IDE 服务已开启，然后：\n\n[刷新扫描（UDP 广播）](command:autolua.refreshDevices)\n\n[扫描子网（逐 IP 探测）](command:autolua.scanSubnet)\n\n[连接模拟器（adb 转发）](command:autolua.adbConnect)\n\n[手动输入 IP](command:autolua.addDevice)\n\n提示：模拟器多为 NAT 网络，UDP 广播不可达，推荐用 adb 转发连接。"
+      }
+    ],
+    "commands": [
+      {
+        "command": "autolua.initProject",
+        "title": "初始化项目",
+        "category": "AutoLua"
+      },
+      {
+        "command": "autolua.refreshDevices",
+        "title": "刷新设备列表（UDP 广播）",
+        "category": "AutoLua",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "autolua.scanSubnet",
+        "title": "扫描子网（逐 IP 探测）",
+        "category": "AutoLua",
+        "icon": "$(search)"
+      },
+      {
+        "command": "autolua.adbConnect",
+        "title": "连接模拟器（adb 转发）",
+        "category": "AutoLua",
+        "icon": "$(device-mobile)"
+      },
+      {
+        "command": "autolua.addDevice",
+        "title": "手动添加设备 IP",
+        "category": "AutoLua",
+        "icon": "$(add)"
+      },
+      {
+        "command": "autolua.connect",
+        "title": "连接设备",
+        "category": "AutoLua",
+        "icon": "$(debug-start)"
+      },
+      {
+        "command": "autolua.disconnect",
+        "title": "断开连接",
+        "category": "AutoLua",
+        "icon": "$(debug-disconnect)"
+      },
+      {
+        "command": "autolua.connectAdb",
+        "title": "转发并连接",
+        "category": "AutoLua",
+        "icon": "$(plug)"
+      },
+      {
+        "command": "autolua.removeHistory",
+        "title": "从历史移除",
+        "category": "AutoLua",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "autolua.run",
+        "title": "运行工程脚本",
+        "category": "AutoLua",
+        "icon": "$(play)"
+      },
+      {
+        "command": "autolua.runFile",
+        "title": "运行当前文件",
+        "category": "AutoLua"
+      },
+      {
+        "command": "autolua.stop",
+        "title": "停止脚本",
+        "category": "AutoLua",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "autolua.pause",
+        "title": "暂停脚本",
+        "category": "AutoLua",
+        "icon": "$(debug-pause)"
+      },
+      {
+        "command": "autolua.resume",
+        "title": "恢复脚本",
+        "category": "AutoLua",
+        "icon": "$(debug-continue)"
+      },
+      {
+        "command": "autolua.syncNow",
+        "title": "增量同步工程",
+        "category": "AutoLua",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "autolua.packageZip",
+        "title": "打包工程并安装到设备",
+        "category": "AutoLua",
+        "icon": "$(package)"
+      },
+      {
+        "command": "autolua.packApk",
+        "title": "打包贴牌 APK",
+        "category": "AutoLua",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "autolua.showLog",
+        "title": "打开日志面板",
+        "category": "AutoLua",
+        "icon": "$(output)"
+      },
+      {
+        "command": "autolua.api.search",
+        "title": "搜索函数",
+        "category": "AutoLua",
+        "icon": "$(search)"
+      },
+      {
+        "command": "autolua.api.insert",
+        "title": "插入函数模板",
+        "category": "AutoLua"
+      },
+      {
+        "command": "autolua.api.detail",
+        "title": "查看函数详情",
+        "category": "AutoLua"
+      },
+      {
+        "command": "autolua2.grabNodeTree",
+        "title": "抓取节点树",
+        "category": "AutoLua"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "autolua.run",
+          "when": "resourceLangId == lua",
+          "group": "navigation@1"
+        },
+        {
+          "command": "autolua.stop",
+          "when": "resourceLangId == lua",
+          "group": "navigation@2"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "autolua.run",
+          "when": "resourceLangId == lua",
+          "group": "autolua@1"
+        },
+        {
+          "command": "autolua.runFile",
+          "when": "resourceLangId == lua",
+          "group": "autolua@2"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "autolua.api.search",
+          "when": "view == autoluaApi",
+          "group": "navigation@1"
+        },
+        {
+          "command": "autolua.refreshDevices",
+          "when": "view == autoluaDevices",
+          "group": "navigation@1"
+        },
+        {
+          "command": "autolua.scanSubnet",
+          "when": "view == autoluaDevices",
+          "group": "navigation@2"
+        },
+        {
+          "command": "autolua.adbConnect",
+          "when": "view == autoluaDevices",
+          "group": "navigation@3"
+        },
+        {
+          "command": "autolua.addDevice",
+          "when": "view == autoluaDevices",
+          "group": "navigation@4"
+        },
+        {
+          "command": "autolua.run",
+          "when": "view == autoluaDevices",
+          "group": "2_run@1"
+        },
+        {
+          "command": "autolua.stop",
+          "when": "view == autoluaDevices",
+          "group": "2_run@2"
+        },
+        {
+          "command": "autolua.syncNow",
+          "when": "view == autoluaDevices",
+          "group": "2_run@3"
+        },
+        {
+          "command": "autolua.packageZip",
+          "when": "view == autoluaDevices",
+          "group": "2_run@4"
+        },
+        {
+          "command": "autolua.showLog",
+          "when": "view == autoluaDevices",
+          "group": "2_run@5"
+        },
+        {
+          "command": "autolua.packApk",
+          "when": "view == autoluaDevices",
+          "group": "2_run@6"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "autolua.api.insert",
+          "when": "view == autoluaApi && viewItem == apiFunc",
+          "group": "inline@1"
+        },
+        {
+          "command": "autolua.api.detail",
+          "when": "view == autoluaApi && viewItem == apiFunc",
+          "group": "inline@2"
+        },
+        {
+          "command": "autolua.connectAdb",
+          "when": "view == autoluaDevices && viewItem == adbDevice",
+          "group": "inline@1"
+        },
+        {
+          "command": "autolua.connect",
+          "when": "view == autoluaDevices && viewItem == device",
+          "group": "inline@1"
+        },
+        {
+          "command": "autolua.stop",
+          "when": "view == autoluaDevices && viewItem == connectedRunning",
+          "group": "inline@1"
+        },
+        {
+          "command": "autolua.run",
+          "when": "view == autoluaDevices && viewItem == connected",
+          "group": "inline@1"
+        },
+        {
+          "command": "autolua.disconnect",
+          "when": "view == autoluaDevices && viewItem =~ /connected/",
+          "group": "inline@2"
+        },
+        {
+          "command": "autolua.connect",
+          "when": "view == autoluaDevices && viewItem == historyDevice",
+          "group": "inline@1"
+        },
+        {
+          "command": "autolua.removeHistory",
+          "when": "view == autoluaDevices && viewItem == historyDevice",
+          "group": "inline@2"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "autolua.run",
+        "key": "f5",
+        "when": "resourceLangId == lua"
+      },
+      {
+        "command": "autolua.run",
+        "key": "ctrl+f5",
+        "when": "resourceLangId == lua"
+      },
+      {
+        "command": "autolua.stop",
+        "key": "f6"
+      },
+      {
+        "command": "autolua.stop",
+        "key": "shift+f5"
+      },
+      {
+        "command": "autolua.packageZip",
+        "key": "f8"
+      }
+    ],
+    "configuration": {
+      "title": "AutoLua",
+      "properties": {
+        "autolua.mainScript": {
+          "type": "string",
+          "default": "main.lua",
+          "description": "工程入口脚本（相对工作区根目录）"
+        },
+        "autolua.autoSyncOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "保存文件时自动增量同步到已连接设备"
+        },
+        "autolua.adbPath": {
+          "type": "string",
+          "default": "adb",
+          "description": "adb 可执行文件路径（默认取 PATH 中的 adb，或填 SDK 完整路径）"
+        },
+        "autolua.log.savePath": {
+          "type": "string",
+          "default": "",
+          "description": "日志文件保存路径（留空不保存；填目录路径如 D:\\logs，每设备每天一个文件）"
+        },
+        "autolua.log.timestamp": {
+          "type": "boolean",
+          "default": true,
+          "description": "日志输出前缀时间戳"
+        },
+        "autolua.packScriptPath": {
+          "type": "string",
+          "default": "D:\\Project\\script\\lrjl\\engine\\script\\pack.py",
+          "description": "贴牌打包脚本 pack.py 路径（打包贴牌 APK 用）"
+        },
+        "autolua.packEngineRepo": {
+          "type": "string",
+          "default": "d:\\Project\\script\\lrjl\\jy-frame-lrjl\\jy-frame-engine\\autolua2",
+          "description": "autolua2 引擎仓库路径（gradle 贴牌构建的 cwd 与 brand_assets 生成位置）"
+        },
+        "autolua.packFrameSrc": {
+          "type": "string",
+          "default": "D:\\Project\\script\\lrjl\\jy-frame-lrjl\\jy-frame-firefly\\脚本",
+          "description": "jy-frame 框架源目录（需含 JY/ 与 frameSdk-autolua2/；打包时工作区缺失会自动注入壳 zip，工作区已有则以工作区为准）"
+        }
+      }
+    }
+  }
+}

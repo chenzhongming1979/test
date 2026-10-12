@@ -1,0 +1,43 @@
+# ===== 仓库级排除（体量控制，源码/文档/脚本全入库）=====
+
+# Gradle 本地缓存与构建产物
+.gradle-home/
+**/.gradle/
+**/build/
+**/.cxx/
+**/.externalNativeBuild/
+local.properties
+
+# autolua2 历史 bundle 备份 / 临时同步（本地保留，不入库）
+.git-backups/
+.tmp_sync/
+
+# APK / 插件包产物（gitee 单文件 100MB 限制；发行物走 Release 附件）
+*.apk
+*.vsix
+**/dist/
+
+# Python
+.venv/
+**/__pycache__/
+*.pyc
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# 运行日志与调试
+*.log
+captures/
+*.hprof
+
+# AI 脚本生成运行时产物（可再生成）
+autoScript/output/
+
+# 贴牌打包本地工作配置（含本机路径与云控 PSK，不入库；模板见 brand.example.json）
+engine/config/brand.json
+
+# 系统
+.DS_Store
+Thumbs.db

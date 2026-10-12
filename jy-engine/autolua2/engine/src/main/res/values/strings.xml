@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 无障碍服务在系统设置页的描述文案 -->
+    <string name="accessibility_service_description">JY-Engine 无障碍服务：提供屏幕节点树获取（obtainXml）与手势注入能力</string>
+</resources>

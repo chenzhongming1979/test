@@ -1,0 +1,9 @@
+{
+  "id": "com.autolua.plugin.ocr.ncnn",
+  "name": "PP-OCR (ncnn)",
+  "version": "1.0.0",
+  "mainClass": "com.autolua.plugin.ocr.ncnn.NcnnOcrPlugin",
+  "provides": ["ocr"],
+  "minHostVersion": "0.0.0",
+  "sha256": "075970f4e460ce56c91bbdf149239e11d099903e886e08c192f838b8fcec4888"
+}

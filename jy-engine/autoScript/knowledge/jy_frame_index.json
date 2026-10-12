@@ -1,0 +1,31 @@
+{
+  "framework": "JY-Frame",
+  "version": "1.0",
+  "doc_path": "D:\\Project\\script\\lrjl\\jy-frame-lrjl\\doc-flat",
+  "documents": [
+    { "id": "readme", "file": "00-README.md", "title": "技术知识库" },
+    { "id": "intro", "file": "01-框架简介.md", "title": "框架简介" },
+    { "id": "flow", "file": "02-框架运行流程.md", "title": "运行流程" },
+    { "id": "vars", "file": "03-变量类型定义.md", "title": "变量类型" },
+    { "id": "index", "file": "06-指令索引.md", "title": "指令索引" },
+    { "id": "ps", "file": "07-ps指令.md", "title": "ps指令" },
+    { "id": "ft", "file": "08-ft指令.md", "title": "ft指令" },
+    { "id": "pic", "file": "10-pic指令.md", "title": "pic指令" },
+    { "id": "ocr", "file": "12-ocr指令.md", "title": "ocr指令" },
+    { "id": "move", "file": "13-move指令.md", "title": "move指令" },
+    { "id": "click", "file": "14-点击指令.md", "title": "点击指令" },
+    { "id": "node", "file": "30-节点指令.md", "title": "节点指令" },
+    { "id": "yolo", "file": "31-yolo指令.md", "title": "yolo指令" }
+  ],
+  "design_notes": [
+    { "id": "tutorial-design", "file": "knowledge/新手引导与章节任务设计.md", "title": "新手引导与章节任务设计（进入游戏/章节任务职责分层）" }
+  ],
+  "key_concepts": {
+    "taps": "任务模块表，脚本核心数据结构",
+    "feature": "特征行，{名称, 优先级, ff=指令, 参数...}",
+    "ff": "动作指令ID，ps/ft/fc/pic/fs/ocr/move/nd/yolo",
+    "ps": "图色指令：找色并点击，p=\"x|y|color-tol,...\"",
+    "ps_s": "图色循环指令：反复点击直到特征消失",
+    "ps_w": "图色等待指令：等待特征出现，waitOut=超时ms"
+  }
+}

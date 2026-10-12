@@ -1,0 +1,85 @@
+<resources>
+    <!-- app_name 由 build.gradle.kts resValue("string","app_name",...) 生成（贴牌 -PBRAND_NAME 注入），此处不可重复定义 -->
+    <!-- Strings used for fragments for navigation -->
+    <string name="first_fragment_label">First Fragment</string>
+    <string name="second_fragment_label">Second Fragment</string>
+    <string name="next">Next</string>
+    <string name="previous">Previous</string>
+    <string name="title_activity_main">MainActivity</string>
+    <string name="title_home">Home</string>
+    <string name="title_dashboard">Dashboard</string>
+    <string name="title_notifications">Notifications</string>
+    <string name="title_debug">开发</string>
+    <string name="title_script">脚本</string>
+    <string name="title_my">我的</string>
+    <string name="my_ip">本机IP:</string>
+    <string name="my_port">监听端口:</string>
+    <string name="my_port_number">8176</string>
+    <string name="debug_switch">调试开发服务:</string>
+    <string name="null_ip">无</string>
+    <string name="add_script">add</string>
+    <string name="script_name">Script Name</string>
+    <string name="start_script">start script</string>
+    <string name="delete_script">delete script</string>
+    <string name="script_description">script description</string>
+    <string name="start_project">启动</string>
+    <string name="main_service_permission">Main Service Permission</string>
+    <string name="login_debug_token">调试Token:</string>
+
+    <string name="main_notification_channel_name">常驻服务</string>
+    <!--Engine Service  -->
+    <string name="engine_notification_title">JY-Engine引擎服务</string>
+    <string name="engine_notification_content">JY-Engine引擎服务正在运行</string>
+
+    <!--Debug Service  -->
+    <string name="debug_notification_title">JY-Engine调试服务</string>
+    <string name="debug_notification_content">JY-Engine调试服务正在运行</string>
+
+    <string name="debug_default_password">JYEngine2026</string>
+    <string name="broadcast_location">广播IP位置:</string>
+    <string name="engine_service">引擎服务</string>
+
+    <!--远程调试面板（9.11 调试通道整合：8176 老通道退役，统一 8080 WebSocket IDE） -->
+    <string name="remote_debug_title">远程调试 (WebSocket)</string>
+    <string name="ide_state">服务状态:</string>
+    <string name="ide_state_running">运行中</string>
+    <string name="ide_state_stopped">已停止</string>
+    <string name="ide_port_not_started">未启动</string>
+    <string name="ide_clients">在线客户端:</string>
+    <string name="udp_discovery">UDP设备发现:</string>
+    <string name="screen_stream_switch">投屏快捷开关:</string>
+    <string name="stream_state_on">推流中</string>
+    <string name="stream_state_off">未推流</string>
+    <string name="ide_connect_hint_fmt">IDE 通过 ws://%1$s:%2$d 连接</string>
+    <string name="ide_connect_hint_off">IDE 服务未启动</string>
+    <string name="stream_no_client">无在线客户端，请先用 PC 端连接 IDE</string>
+    <string name="stream_start_failed">投屏启动失败: %1$s</string>
+
+    <!--权限引导（免 root 能力：投屏虚拟屏 / 无障碍注入 / Shizuku） -->
+    <string name="perm_title">权限引导</string>
+    <string name="perm_projection">投屏虚拟屏:</string>
+    <string name="perm_accessibility">无障碍注入:</string>
+    <string name="perm_shizuku">Shizuku 注入:</string>
+    <string name="perm_state_ok">已就绪</string>
+    <string name="perm_state_projection_off">未授权，点击弹出系统授权框</string>
+    <string name="perm_state_accessibility_off">未开启，点击去系统无障碍设置</string>
+    <string name="perm_state_shizuku_ok">已授权（shell 权限注入）</string>
+    <string name="perm_state_shizuku_off">未授权，点击发起授权（需先启动 Shizuku）</string>
+    <string name="perm_shizuku_start_failed">Shizuku 未运行：请安装/启动 Shizuku 后重试（Android 11+ 可用无线调试启动，低版本需 adb）</string>
+    <string name="perm_hint">Android 13+ 侧载安装时无障碍开关可能置灰：adb shell appops set --uid &lt;包名&gt; ACCESS_RESTRICTED_SETTINGS allow</string>
+    <string name="inject_mode">注入模式:</string>
+    <string name="inject_mode_dialog_title">选择注入模式（手动指定后优先使用，不可用回落自动链）</string>
+    <string name="inject_mode_need_projection">帧源未就绪：root 环境自动初始化失败或未授权投屏，已弹出授权框，完成后重新打开开关</string>
+    <!--无障碍存活守护（watchdog）通知渠道与文案 -->
+    <string name="watchdog_channel_name">无障碍守护</string>
+    <string name="watchdog_channel_desc">无障碍服务断开提醒</string>
+    <string name="watchdog_notify_title">无障碍服务已断开</string>
+    <string name="watchdog_notify_normal">脚本注入已失效，点击前往系统设置重新开启无障碍</string>
+    <string name="watchdog_notify_restricted">侧载安装受限，点击前往应用详情开启「允许受限设置」</string>
+
+    <!--Android 13+ 受限设置引导（P0.3） -->
+    <string name="restricted_settings_guide_title">无障碍开关被系统限制</string>
+    <string name="restricted_settings_guide_prefix">本应用为侧载安装，Android 13+ 默认禁止直接开启无障碍，请按以下步骤解除：</string>
+    <string name="restricted_settings_go_details">去应用详情</string>
+    <string name="restricted_settings_go_accessibility">仍去无障碍设置</string>
+</resources>

@@ -1,0 +1,7 @@
+# AutoScript 依赖（2026-09-25 由旧 .venv 实际 import 扫描精简而来）
+opencv-python
+numpy
+pillow
+websocket-client
+pyyaml
+jinja2

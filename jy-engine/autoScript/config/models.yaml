@@ -1,0 +1,39 @@
+vision:
+  provider: "agnes"
+  api_key: "${AGNES_API_KEY}"
+  model: "agnes-3.0-flash"
+  base_url: "https://apihub.agnes-ai.com/v1"
+  timeout: 120
+  max_retries: 2
+
+# 备用：火山方舟 doubao（多模态，vision_available 实测通过，需 DOUBAO_API_KEY）
+# vision:
+#   provider: "doubao"
+#   api_key: "${DOUBAO_API_KEY}"
+#   model: "doubao-seed-1-6-250615"
+#   base_url: "https://ark.cn-beijing.volces.com/api/v3"
+#   timeout: 60
+#   max_retries: 2
+
+ocr:
+  provider: "rapidocr"
+
+feature_sampler:
+  point_count: 3
+  variance_threshold: 50
+  contrast_threshold: 30
+  min_tolerance: "101010"
+  max_tolerance: "303030"
+  verify_frames: 3
+
+compiler:
+  default_platform: "lua"
+  timeout_multiplier: 1.5
+  no_feature_count: 5
+  big_count_default: 20
+  loop_detection_threshold: 3
+
+verifier:
+  phash_diff_threshold: 5
+  max_retry: 2
+  wait_stable_timeout_ms: 3000

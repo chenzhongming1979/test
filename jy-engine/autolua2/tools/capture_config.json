@@ -1,0 +1,10 @@
+{
+  "mode": "adb",
+  "serial": "emulator-5558",
+  "direct_addr": "127.0.0.1",
+  "adb_path": "adb",
+  "similarity": 0.9,
+  "tpl_dir": "d:\\Project\\script\\lrjl\\jy-frame-lrjl\\jy-frame-engine\\autolua2\\tools",
+  "mag_on": true,
+  "fit_mode": "fit"
+}

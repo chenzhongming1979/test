@@ -1,0 +1,62 @@
+# 宿主客户端契约
+
+> 文档版本 v1.0（2026-09-18，文档三层化重组新建）
+> 本域权威范围：宿主客户端 `autolua2\app` 对外可观察的五条契约——本地服务注册清单、引擎创建/启动、保活组件触发条件与权限、工程目录规则、Manifest 权威清单，每条句末标注对码基准。
+
+## ① 本地服务注册清单契约（服务名 → 实现 → 注入目标）
+
+- 注册点 A（root 主引擎跨进程服务）：`AutoLuaEngineProxy.instance.setEngineCreator` 内用 `Client.Builder` 注册四个 app 进程实例的服务——`UI`（`UserInterfaceImp.instance`，接口 `UserInterface`）、`FloatController`（`FloatControllerImp.instance`，接口 `FloatController`）、`IdeLog`（`IdeLogService()`，接口 `IdeLog`）、`uimgr`（`UiMgrImp.instance`，接口 `IUiMgr`）；root Lua 经跨进程代理反向调用这些全局对象（`autolua2\app\src\main\java\com\autolua\autolua2\MainApp.kt:110`、`MainApp.kt:112`、`MainApp.kt:113`、`MainApp.kt:116`、`MainApp.kt:118`）。
+- 接口约束：`addLocalService` 第三参必须是接口——root 进程 `Server.init` 用 `Proxy.newProxyInstance` 重建本地服务代理时要求 interface，传具体类会导致 root 引擎进程启动即崩溃（`autolua2\app\src\main\java\com\autolua\autolua2\MainApp.kt:115`；`IdeLogService.kt:12-14` 同义注释）。
+- `IdeLog` 契约：`log(line)` 单方法，实现内转发 `IdeServerManager.dispatchScriptOutput(line)` 分流为 IDE WS 的 log 帧，是老 8176 通道退役后主引擎 print 的唯一回传路径（`autolua2\app\src\main\java\com\autolua\autolua2\IdeLogService.kt:20`、`IdeLogService.kt:23`）。
+- `uimgr` 契约：动态 UI 服务实例驻留 app 主进程（悬浮窗权限所在进程），op 协议响应帧与事件轮询契约见 [ipc/contracts.md](../ipc/contracts.md) ④（`autolua2\app\src\main\java\com\autolua\autolua2\MainApp.kt:117`）。
+- 注册点 B（IDE 沙箱）：`LuaEngineExecutor` 实例经 `registerService` 注册与 root 同款全集——`UI` :128、`FloatController` :129、`http` :131、`luajava` :133、`LuaEngine` :135、`file` :138、`device` :140、`crypt` :142、`app` :144、`plugin` :147、`ocr` :149、`media` :151、`ime` :153、`mysql` :155、`event` :157、`compat` :160（必须最后注册，其依赖前序服务）、`uimgr` :163、`uilib` :164——保证脚本在两环境可移植（`autolua2\app\src\main\java\com\autolua\autolua2\MainApp.kt:127`、`MainApp.kt:128`、`MainApp.kt:160`、`MainApp.kt:163`）。
+- 一致性铁律：root 主引擎（Server.kt）、IDE 沙箱（MainApp.kt 注册点 B）、app 进程跨进程代理（注册点 A）三处 Lua 全局名必须保持一致，新增服务需同步注册点清单（`autolua2\app\src\main\java\com\autolua\autolua2\MainApp.kt:127`；全局矩阵见 [../../01-架构总览.md](../../01-架构总览.md) §8 :232-242）。
+- 底层协议：`addLocalService` 的序列化/代理还原机制不在本域，见 [ipc/contracts.md](../ipc/contracts.md) ③ 本地服务注册协议。
+
+## ② 引擎创建/启动契约
+
+- 引擎创建器：`setEngineCreator` 提供的 lambda 返回 `Client.Builder(this).build()!!` 产出的 root Client，注册完四个跨进程服务后 `AutoLuaEngineProxy.instance.start()` 启动引擎代理（`autolua2\app\src\main\java\com\autolua\autolua2\MainApp.kt:110`、`MainApp.kt:119`、`MainApp.kt:121`）。
+- 主服务生命周期：`MainService.onCreate` 创建通知渠道 `Constants.FOREGROUND_SERVICE_CHANNEL_ID` 并 `startForeground(Constants.ENGINE_SERVICE_NOTIFICATION_ID)`（ID=10087）转前台，随后申请 `PARTIAL_WAKE_LOCK` 且 `acquire(10*60*1000L)` 限时 10 分钟（`autolua2\app\src\main\java\com\autolua\autolua2\MainService.kt:26`、`MainService.kt:50`、`MainService.kt:56`；ID 常量 `base\Constants.kt:5`）。
+- 重投递语义：`MainService.onStartCommand` 返回 `START_REDELIVER_INTENT`，服务被杀重建后重投递最后一次 Intent（`autolua2\app\src\main\java\com\autolua\autolua2\MainService.kt:66`）。
+- AIDL 绑定点：`MyAutoLuaEngineService`（`IMainService.Stub`）暴露 `bind(input: IInputMethodService?) / unbind()`，供模拟输入法通道（方案五，归 ipc/inputmethod 域）跨进程挂接 `IInputMethodService` 引用（`autolua2\app\src\main\java\com\autolua\autolua2\MainService.kt:72`、`MainService.kt:73`、`MainService.kt:83`）。
+- 销毁顺序：`MainService.onDestroy` 依次 `wakeLock.release()` → `ProjectManagerImp.instance.stop()`（中断工程任务线程）→ `AutoLuaEngineProxy.instance.destroy()`（`autolua2\app\src\main\java\com\autolua\autolua2\MainService.kt:59`；`ProjectManagerImp.kt:162`）。
+- 启动时机：`MainApp.onCreate` 末尾 `startService(Intent(this, MainService::class.java))` 拉起主服务（`autolua2\app\src\main\java\com\autolua\autolua2\MainApp.kt:289`）。
+- 运行状态广播：WORKER 观察者把引擎 `IDLE/RUNNING` 映射为悬浮球状态并经 `IdeServerManager.broadcastScriptState("idle"/"running")` 同步 VSCode 插件按钮态（`autolua2\app\src\main\java\com\autolua\autolua2\MainApp.kt:102`、`MainApp.kt:106`）。
+
+## ③ 保活组件契约（触发条件与权限）
+
+- 门面入口：`KeepAliveManager.start` = 启动前台服务 + `schedulePersistentJob` + `scheduleRepeatingAlarm` 三件套；`emergencyKeepAlive` = 前台服务 + `scheduleImmediateJob` + 紧急梯度闹钟（`autolua2\app\src\main\java\com\autolua\autolua2\keepalive\KeepAliveManager.kt:38`、`KeepAliveManager.kt:50`）。
+- 前台服务（KeepAliveService）：通知 ID 10089、渠道 `keepalive`；`onStartCommand` 每次被拉起都 `startForegroundCompat` + 取 WakeLock + 重排持久 Job 与重复 Alarm 后返回 `START_STICKY`；`onTaskRemoved`/`onDestroy` 触发 `emergencyKeepAlive` 自愈；API 34+ 必须以 `FOREGROUND_SERVICE_TYPE_SPECIAL_USE`（数值 1073741824）三参 `startForeground`（`autolua2\app\src\main\java\com\autolua\autolua2\keepalive\KeepAliveService.kt:38`、`KeepAliveService.kt:53`、`KeepAliveService.kt:60`、`KeepAliveService.kt:66`、`KeepAliveService.kt:85`）。
+- Job（KeepAliveJobService）：持久 Job 固定 `jobId=1001`，15 分钟周期 + 5 分钟弹性 + `NETWORK_TYPE_ANY` + 线性退避 30s + `setPersisted(true)`（需 `RECEIVE_BOOT_COMPLETED` 权限才可持久化）；即时 Job 0 延迟、1 秒 deadline、jobId 用 `currentTimeMillis()%10000+500` 防重；`onStartJob`/`onStopJob`/`onDestroy` 三个入口都尝试拉起前台服务（`autolua2\app\src\main\java\com\autolua\autolua2\keepalive\KeepAliveJobService.kt:69`、`KeepAliveJobService.kt:89`、`KeepAliveJobService.kt:110`、`KeepAliveJobService.kt:114`、`KeepAliveJobService.kt:29`）。
+- Alarm（KeepAliveAlarmSender）：常规模式 `setRepeating` 每 60 秒（requestCode 8886）；紧急模式 `setExactAndAllowWhileIdle` 从当前时刻 +1s 梯度五连发（requestCode 基 8888 依次 +1）；API 31+ 需 `canScheduleExactAlarms` 已授权否则降级非精确 `set()`，`SecurityException` 同样降级；PendingIntent 一律 `FLAG_UPDATE_CURRENT or FLAG_IMMUTABLE`，API 26+ 用 `getForegroundService`（`autolua2\app\src\main\java\com\autolua\autolua2\keepalive\KeepAliveAlarmSender.kt:93`、`KeepAliveAlarmSender.kt:112`、`KeepAliveAlarmSender.kt:73`、`KeepAliveAlarmSender.kt:60`、`KeepAliveAlarmSender.kt:62`）。
+- Boot（BootReceiver）：仅响应 `ACTION_BOOT_COMPLETED`，且 SharedPreferences `boot_receiver_prefs / auto_start_on_boot` 开关为 true（默认 false）才执行——拉前台服务 + 排持久 Job + 排即时 Job（`autolua2\app\src\main\java\com\autolua\autolua2\keepalive\BootReceiver.kt:17`、`BootReceiver.kt:19`、`BootReceiver.kt:26`）。
+- ContentProvider（KeepAliveContentProvider）：`onCreate` 先于 `Application.onCreate` 执行，进程一旦被拉起即排即时 Job + 尝试启动前台服务；内容实现为空（query/insert/update/delete 全返回空值），任意组件访问亦可拉起本进程（`autolua2\app\src\main\java\com\autolua\autolua2\keepalive\KeepAliveContentProvider.kt:18`、`KeepAliveContentProvider.kt:24`）。
+- 无障碍自拉活接线：`AccessibilityLaunchHelper.setDelegate` 在 system_server 重建无障碍服务进程时回调——`KeepAliveManager.start(ctx)` + `IdeServerManager.start()` + `DiscoveryManager.apply(ctx)`，全部 try-catch 不影响系统绑定（`autolua2\app\src\main\java\com\autolua\autolua2\MainApp.kt:254`、`MainApp.kt:256`、`MainApp.kt:261`）。
+- 后台启动限制：API 26+ 走 `startForegroundService`，Android 12+ 后台启动 FGS 受限时抛异常被静默捕获，由 Job/Alarm 兜底（`autolua2\app\src\main\java\com\autolua\autolua2\keepalive\KeepAliveManager.kt:63`、`KeepAliveManager.kt:72`）。
+- ⚠️ 注册缺口（对码事实）：KeepAliveService / KeepAliveJobService / KeepAliveContentProvider / BootReceiver 四组件均未在 AndroidManifest.xml 声明（Manifest 全文 1-76 行无任何 keepalive 条目），未注册组件的 start/service/广播在运行时会失败并被上述 catch 吞掉，保活链路实际不闭环——保活原案见 [../engine-core/INTEGRATION_PLAN.md](../engine-core/INTEGRATION_PLAN.md) §5 :576-586 的 Manifest 要求（`autolua2\app\src\main\AndroidManifest.xml:32`；架构总览 §7 亦标注此事实 :195）。
+- 厂商引导：`getManufacturerGuideIntent` 识别小米/红米/POCO（MANUFACTURER+BRAND）返回 MIUI 自启动页 Intent，解析失败回退应用详情页；`isBatteryIgnored` 查询电池优化白名单状态（`autolua2\app\src\main\java\com\autolua\autolua2\keepalive\KeepAliveManager.kt:97`、`KeepAliveManager.kt:80`）。
+
+## ④ 工程目录契约（ProjectManager 路径规则与 base 常量）
+
+- 根目录：`MainApp.onCreate` 以 `getExternalFilesDir(null)` 为 sdCardDir，`ProjectManagerImp.instance.init(context, sdCardDir + "project")` 指定工程根（`autolua2\app\src\main\java\com\autolua\autolua2\MainApp.kt:61`、`MainApp.kt:293`）。
+- 目录结构：`checkDir` 在工程根下固定生成三级——`<root>/cache`（安装临时区）、`<root>/projects`（工程区）、`<root>/configure.json`（使用清单），故实际工程路径为 `Android/data/com.autolua.autolua2/files/project/projects/<name>/<version>/`（`autolua2\app\src\main\java\com\autolua\autolua2\project\ProjectManagerImp.kt:53`、`ProjectManagerImp.kt:58`、`ProjectManagerImp.kt:63`、`ProjectManagerImp.kt:68`）。
+- 工程包格式：zip 包根必须含 `package.json`，字段 `name / version / description / uiEntry / preloadEntry / mainEntry`；version 缺省回退 `"v1.0"`，解析失败或无 package.json 拒绝安装（`autolua2\app\src\main\java\com\autolua\autolua2\project\ProjectManagerImp.kt:205`、`ProjectManagerImp.kt:212`、`ProjectManagerImp.kt:288`）。
+- 安装流程：`addProject` 入队 → `handleAddTask` 解压到 cache → 校验 package.json → `moveToProjectDir` 落到 `projects/<name>/<version>/` → `updateUseInfo` 写 configure.json → 广播观察者（`autolua2\app\src\main\java\com\autolua\autolua2\project\ProjectManagerImp.kt:399`、`ProjectManagerImp.kt:275`、`ProjectManagerImp.kt:226`）。
+- 一致性修复：`initProjectInfo` 启动扫描时对目录缺失/版本目录异常的工程清盘并回写 configure.json（`autolua2\app\src\main\java\com\autolua\autolua2\project\ProjectManagerImp.kt:94`、`ProjectManagerImp.kt:128`）。
+- 启动工程 UI：`startProjectActivity` 把 `Configure.rootDir` 切到 `projects/<name>/<version>/`，以 `uiDir/main.lua` 为 InitData 入口、`uiDir/init.lua` 为 preload，extras 注入 `ROOT_DIR`/`RESOURCE_DIR`，并把 `LUA_MAIN_DIR` 传给 ProjectActivity（`autolua2\app\src\main\java\com\autolua\autolua2\project\ProjectManagerImp.kt:419`、`ProjectManagerImp.kt:423`、`ProjectManagerImp.kt:426`、`ProjectManagerImp.kt:436`）。
+- ui/backend 路径解析：`Path.ui/backend` 把相对 uri 拼到 `Configure.uiDir`（rootDir+"ui/"）或 `Configure.backendDir`（rootDir+"src/"），`http(s)://`、`file:///`、绝对路径原样返回（`autolua2\app\src\main\java\com\autolua\autolua2\base\Path.kt:4`、`Path.kt:11`、`Path.kt:15`；`Configure.kt:6`、`Configure.kt:9`、`Configure.kt:11`）。
+- 常量契约：`Constants.DEBUG_PORT=8176`（老调试通道端口，代码保留）、`ENGINE_SERVICE_NOTIFICATION_ID=10087`、`DEBUG_SERVICE_NOTIFICATION_ID=10088`、`DEBUG_DEFAULT_TOKEN="AutoLuaByLiZhi"`；保活通知 ID 10089 与 10087/10088 错开（`autolua2\app\src\main\java\com\autolua\autolua2\base\Constants.kt:4`、`Constants.kt:5`、`Constants.kt:6`、`Constants.kt:8`；`KeepAliveService.kt:38`）。
+- IDE 通道根目录对齐：ideExecutor 与 IdeServerManager 的 rootDir 都设为 `sdCardDir + "project"`，与工程根一致（`autolua2\app\src\main\java\com\autolua\autolua2\MainApp.kt:166`、`MainApp.kt:186`）。
+
+## ⑤ Manifest 权威清单（对码 AndroidManifest.xml）
+
+- 自定义权限：声明 `com.autolua.autolua2.MainService`（signature 级，含 description）；但 MainService 组件实际引用的 permission 是 `com.autolua.autolua2.engine.AutoLuaEngineServiceImp`（引擎模块侧权限名，经 manifest 合并生效，`tools:ignore="ForegroundServicePermission"` 压制 lint）——两名字不一致为对码事实（`autolua2\app\src\main\AndroidManifest.xml:5`、`AndroidManifest.xml:39`、`AndroidManifest.xml:40`）。
+- uses-permission 全集：`FOREGROUND_SERVICE` :10、`WAKE_LOCK` :11、`POST_NOTIFICATIONS` :12、`FOREGROUND_SERVICE_SPECIAL_USE` :14（保活/主服务 specialUse 用）、`RECEIVE_BOOT_COMPLETED` :15（BootReceiver + 持久 Job）、`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` :16（`autolua2\app\src\main\AndroidManifest.xml:10`、`AndroidManifest.xml:14`、`AndroidManifest.xml:15`、`AndroidManifest.xml:16`）。
+- 兼容声明：`<uses-sdk tools:overrideLibrary="rikka.shizuku.api,rikka.shizuku.provider,rikka.shizuku.shared,rikka.shizuku.aidl"/>`——Shizuku 13.1.5 声明 minSdk 24/23 而本应用 minSdk 22，强制合并（Shizuku 注入在 API 22 不可用，其余不受影响）（`autolua2\app\src\main\AndroidManifest.xml:19`）。
+- application 属性：`android:name=".MainApp"`、`usesCleartextTraffic="true"`（WS 明文）、theme `Theme.Autolua2`、icon `@mipmap/logo`（`autolua2\app\src\main\AndroidManifest.xml:20`、`AndroidManifest.xml:30`）。
+- Service 组件（共 1 个声明）：`.MainService`——`exported="true"`、`foregroundServiceType="specialUse"`、signature 级 permission 保护（`autolua2\app\src\main\AndroidManifest.xml:34`、`AndroidManifest.xml:38`）。
+- Activity 组件（4 个本域 + 1 个 MLN）：`.SplashActivity`（LAUNCHER 入口，singleTask，exported=true，configChanges 屏旋）:55-65、`.MainActivity`（singleTask，exported=false）:42-46、`.DebugActivity`（singleTask，exported=false）:66-69、`.ProjectActivity`（singleTask，exported=false）:70-73、`com.immomo.mls.activity.LuaViewActivity`（MLN Lua UI 页）:52-54（`autolua2\app\src\main\AndroidManifest.xml:56`、`AndroidManifest.xml:43`、`AndroidManifest.xml:67`、`AndroidManifest.xml:71`、`AndroidManifest.xml:53`）。
+- provider 声明：本域 Manifest 无 ContentProvider 声明——KeepAliveContentProvider 未注册（见 ③）；Glide 以 meta-data 方式接入 `.mln.provider.GlideConfiguration`（`GlideModule` 旧式注解）（`autolua2\app\src\main\AndroidManifest.xml:48`）。
+- 退役标注：Manifest 注释明确"老 8176 调试服务 `.debug.DebugServiceImp` 已摘除（代码文件保留，可一键恢复）；统一走 IdeServerManager(8080 WS)"（`autolua2\app\src\main\AndroidManifest.xml:32`；退役实现类 `debug\DebugServiceImp.kt:43`、`debug\DebugServerImp.kt:33`）。
+- 权限申请入口：SplashActivity 运行时申请 `WRITE_EXTERNAL_STORAGE / READ_EXTERNAL_STORAGE / SYSTEM_ALERT_WINDOW` 三项，授权后进 MainActivity（`autolua2\app\src\main\java\com\autolua\autolua2\activity\SplashActivity.kt:71`、`SplashActivity.kt:24`）。
+- 模块依赖：app 模块 `implementation(project(":engine"))` 依赖引擎模块（全部 engine.* 类由此引入）（`autolua2\app\build.gradle.kts:153`）。

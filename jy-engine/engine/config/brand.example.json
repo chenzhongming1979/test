@@ -1,0 +1,8 @@
+{
+  "app_name": "我的应用",
+  "package_name": "com.example.myapp",
+  "icon": "D:\\path\\to\\icon.png",
+  "project_zip": "D:\\path\\to\\jyframe-cloud.zip",
+  "cloud_url": "",
+  "secret": ""
+}

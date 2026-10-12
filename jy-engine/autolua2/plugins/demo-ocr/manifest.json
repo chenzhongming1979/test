@@ -1,0 +1,9 @@
+{
+  "id": "com.autolua.plugin.ocr.demo",
+  "name": "Demo OCR (mock)",
+  "version": "1.0.0",
+  "mainClass": "com.autolua.plugin.demo.DemoOcrPlugin",
+  "provides": ["ocr"],
+  "minHostVersion": "0.0.0",
+  "sha256": "55592ebbf6197dfed56dacad4cb6b280f6ededf6dbec2ccd76f6bb6199dabb16"
+}

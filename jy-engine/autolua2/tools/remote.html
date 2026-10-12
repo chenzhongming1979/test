@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AutoLua2 远程控制台（方案八）</title>
+<!--
+  AutoLua2 remote.html —— PC 浏览器零安装远程控制台（单文件，零依赖，纯原生 JS）
+  功能（对照 docs/features/engine-core/INTEGRATION_PLAN.md 9.7）：
+    1. 连接：ws://设备:8080（端口回退 8081..8085 时手动改），状态灯、指数退避自动重连
+       （1s→2s→4s→…→15s 封顶），重连失败顺带探测 9090 发 wake（root daemon 唤醒，二期）
+    2. 投屏：JPEG → createImageBitmap/drawImage；H.264 → WebCodecs VideoDecoder 硬解
+       （设备端下发 avcC description，AVCC 格式帧数据，首 NALU type=5 判 I 帧）
+    3. 操控：鼠标 down/move/up → inject_touch（等比换算设备绝对坐标）；滚轮 → inject_swipe；
+       文本框 → inject_text；快捷键按钮 → inject_key
+    4. 脚本：本地 zip 拖拽/选择 → push_zip 三段推送（分块 base64，MD5 留空跳过校验）
+       → get_file_md5_list 文件树 → run_script/stop_script/pause_script/resume_script
+    5. 面板：capabilities 展示（commands/vision/stream/inject/plugins/root_dir）+ 控制台（log/image）
+    6. 投屏预设：单机调试 30fps/3M/1.0x、单机常用 15fps/1.5M/1.0x、批量 5fps/500k/0.5x
+  多设备：多标签页各连一台（批量面板二期）
+-->
+<style>
+  :root { --bg:#14161a; --panel:#1d2026; --line:#2c313a; --txt:#d6dae1; --dim:#7d8590; --acc:#4f9cf9; --ok:#3fb96f; --err:#e0564f; --warn:#d9a13c; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--txt); font:13px/1.5 "Segoe UI",system-ui,sans-serif; height:100vh; display:flex; flex-direction:column; overflow:hidden; }
+  #topbar { display:flex; align-items:center; gap:8px; padding:8px 12px; background:var(--panel); border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  #topbar input[type=text] { flex:1; min-width:220px; max-width:420px; background:#101216; border:1px solid var(--line); color:var(--txt); padding:5px 8px; border-radius:4px; }
+  #dot { width:10px; height:10px; border-radius:50%; background:#555; flex:none; }
+  #dot.on { background:var(--ok); box-shadow:0 0 6px var(--ok); }
+  #dot.off { background:var(--err); }
+  button { background:#2a2f39; color:var(--txt); border:1px solid var(--line); padding:5px 12px; border-radius:4px; cursor:pointer; font-size:12px; }
+  button:hover { border-color:var(--acc); color:#fff; }
+  button.primary { background:var(--acc); border-color:var(--acc); color:#fff; }
+  button.danger { background:transparent; border-color:var(--err); color:var(--err); }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  #main { flex:1; display:flex; min-height:0; }
+  #left { flex:1; display:flex; flex-direction:column; min-width:0; }
+  #canvasWrap { flex:1; display:flex; align-items:center; justify-content:center; position:relative; background:#0b0d10; overflow:auto; min-height:0; }
+  #screen { background:#000; max-width:100%; max-height:100%; display:block; cursor:crosshair; touch-action:none; }
+  #canvasHint { position:absolute; color:var(--dim); pointer-events:none; text-align:center; }
+  #canvasHint b { color:var(--txt); }
+  #streamBar { display:flex; align-items:center; gap:6px; padding:6px 10px; background:var(--panel); border-top:1px solid var(--line); flex-wrap:wrap; font-size:12px; }
+  #streamBar .grp { display:flex; align-items:center; gap:3px; }
+  #streamBar label { color:var(--dim); }
+  #streamBar input, #streamBar select { width:64px; background:#101216; border:1px solid var(--line); color:var(--txt); padding:3px 4px; border-radius:3px; }
+  #streamBar select { width:auto; }
+  #stats { margin-left:auto; color:var(--dim); font-variant-numeric:tabular-nums; }
+  #right { width:340px; flex:none; display:flex; flex-direction:column; gap:8px; padding:8px; overflow-y:auto; background:var(--panel); border-left:1px solid var(--line); }
+  fieldset { border:1px solid var(--line); border-radius:5px; padding:8px; }
+  legend { color:var(--dim); padding:0 6px; font-size:12px; }
+  .row { display:flex; gap:6px; align-items:center; margin-bottom:6px; flex-wrap:wrap; }
+  .row:last-child { margin-bottom:0; }
+  #fileList { max-height:120px; overflow-y:auto; background:#101216; border:1px solid var(--line); border-radius:4px; font-size:12px; }
+  #fileList div { padding:2px 8px; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #fileList div:hover { background:#22262e; }
+  #fileList div.sel { background:#2b3b52; color:#fff; }
+  #dropZone { border:1px dashed var(--line); border-radius:4px; padding:10px; text-align:center; color:var(--dim); margin-bottom:6px; font-size:12px; }
+  #dropZone.drag { border-color:var(--acc); color:var(--acc); }
+  #cap { font-size:12px; max-height:150px; overflow-y:auto; white-space:pre-wrap; word-break:break-all; color:var(--dim); background:#101216; border:1px solid var(--line); border-radius:4px; padding:6px; }
+  #console { flex:1; min-height:140px; overflow-y:auto; background:#101216; border:1px solid var(--line); border-radius:4px; padding:6px; font:12px/1.45 Consolas,monospace; white-space:pre-wrap; word-break:break-all; }
+  #console .err { color:var(--err); } #console .ok { color:var(--ok); } #console .warn { color:var(--warn); } #console .sys { color:var(--dim); }
+  #console img { max-width:100%; border:1px solid var(--line); border-radius:3px; margin:2px 0; display:block; }
+  kbd { background:#2a2f39; border:1px solid var(--line); border-radius:3px; padding:1px 5px; font-size:11px; cursor:pointer; }
+  kbd:hover { border-color:var(--acc); }
+  #txtIn { flex:1; min-width:140px; background:#101216; border:1px solid var(--line); color:var(--txt); padding:4px 8px; border-radius:4px; }
+  .muted { color:var(--dim); font-size:11px; }
+</style>
+</head>
+<body>
+<div id="topbar">
+  <span id="dot" title="未连接"></span>
+  <input id="addr" type="text" value="ws://192.168.1.100:8080" spellcheck="false">
+  <button id="btnConn" class="primary">连接</button>
+  <button id="btnDisc" disabled>断开</button>
+  <button id="btnAuto" title="断线后指数退避自动重连，并探测 9090 发 wake 唤醒">自动重连：开</button>
+  <span id="devInfo" class="muted"></span>
+</div>
+
+<div id="main">
+  <div id="left">
+    <div id="canvasWrap">
+      <canvas id="screen" width="640" height="360"></canvas>
+      <div id="canvasHint"><b>未投屏</b><br>连接设备后点击「开始投屏」</div>
+    </div>
+    <div id="streamBar">
+      <div class="grp"><label>codec</label>
+        <select id="codec"><option value="h264">h264</option><option value="jpeg">jpeg</option></select>
+      </div>
+      <div class="grp"><label>fps</label><input id="fps" type="number" value="15" min="1" max="60"></div>
+      <div class="grp"><label>码率</label><input id="bitrate" type="number" value="1500000" step="100000" title="h264 码率 bps"></div>
+      <div class="grp"><label>质量</label><input id="quality" type="number" value="70" min="10" max="100" title="jpeg 质量"></div>
+      <div class="grp"><label>缩放</label><input id="scale" type="number" value="1.0" step="0.1" min="0.1" max="1.0"></div>
+      <button class="preset" data-p="30,3000000,1.0,70" title="h264 30fps / 3Mbps / 1.0x">单机调试</button>
+      <button class="preset" data-p="15,1500000,1.0,70" title="h264 15fps / 1.5Mbps / 1.0x">单机常用</button>
+      <button class="preset" data-p="5,500000,0.5,60" title="h264 5fps / 500kbps / 0.5x，20 台 ≈ 1.2MB/s">批量模式</button>
+      <button id="btnStart" class="primary">开始投屏</button>
+      <button id="btnStop">停止投屏</button>
+      <span id="stats">—</span>
+    </div>
+  </div>
+
+  <div id="right">
+    <fieldset>
+      <legend>脚本（推送 zip → 运行，走主引擎）</legend>
+      <div id="dropZone">拖拽工程 zip 到此处，或 <label style="color:var(--acc);cursor:pointer">选择文件<input id="zipIn" type="file" accept=".zip" hidden></label></div>
+      <div id="fileList"><div class="sys" style="color:var(--dim);cursor:default">（尚未同步文件列表）</div></div>
+      <div class="row" style="margin-top:6px">
+        <button id="btnRun" disabled>▶ run_script</button>
+        <button id="btnStopS">■ stop</button>
+        <button id="btnPause">⏸ pause</button>
+        <button id="btnResume">▶ resume</button>
+        <button id="btnSync" title="get_file_md5_list">同步列表</button>
+      </div>
+      <div class="row"><span id="pushInfo" class="muted"></span></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>远程输入</legend>
+      <div class="row">
+        <input id="txtIn" type="text" placeholder="输入文本 → 设备 inject_text" spellcheck="false">
+        <button id="btnSendTxt">发送</button>
+      </div>
+      <div class="row">
+        <kbd data-key="4">BACK</kbd><kbd data-key="3">HOME</kbd><kbd data-key="82">MENU</kbd>
+        <kbd data-key="26">电源</kbd><kbd data-key="24">音+</kbd><kbd data-key="25">音−</kbd>
+        <kbd data-key="66">ENTER</kbd><kbd data-key="67">DEL</kbd><kbd data-key="187">音+</kbd>
+      </div>
+      <div class="row muted">鼠标：左键点击/拖拽 → inject_touch；滚轮 → inject_swipe</div>
+    </fieldset>
+
+    <fieldset>
+      <legend>设备能力 capabilities</legend>
+      <div id="cap">（连接后自动拉取）</div>
+    </fieldset>
+
+    <fieldset style="flex:1;display:flex;flex-direction:column;min-height:220px">
+      <legend>控制台（脚本 log / image 帧回传）</legend>
+      <div id="console"></div>
+    </fieldset>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ================= 全局状态 ================= */
+const $ = id => document.getElementById(id);
+const els = { dot:$('dot'), addr:$('addr'), conn:$('btnConn'), disc:$('btnDisc'), auto:$('btnAuto'),
+  dev:$('devInfo'), screen:$('screen'), hint:$('canvasHint'), stats:$('stats'),
+  console:$('console'), cap:$('cap'), fileList:$('fileList'), pushInfo:$('pushInfo'), dropZone:$('dropZone') };
+const ctx2d = els.screen.getContext('2d');
+/* 连接地址记忆（9.11）：页面加载预填上次成功连接的地址 */
+try {
+  const lastAddr = localStorage.getItem('ide_last_addr');
+  if (lastAddr) els.addr.value = lastAddr;
+} catch(e) {}
+
+const S = {
+  ws:null, manualClose:false, autoReconnect:true, attempts:0, reconnectTimer:null,
+  connected:false, clientId:null,
+  selFile:null,
+  stream:{ active:false, codec:'h264', w:0, h:0, decoder:null, tsUs:0, avcC:null, hwAccel:'', waitKey:true, keyTimer:null, syncTries:0, attemptIdx:0, lastRestart:0, lastGoodIdx:0 },
+  stat:{ frames:0, bytes:0, t0:0 },
+};
+
+/* ================= 控制台 ================= */
+function appendLog(text, cls) {
+  const div = document.createElement('div');
+  if (cls) div.className = cls;
+  div.textContent = text;
+  els.console.appendChild(div);
+  while (els.console.childElementCount > 400) els.console.removeChild(els.console.firstChild);
+  els.console.scrollTop = els.console.scrollHeight;
+}
+function appendImage(base64, w, h) {
+  const img = document.createElement('img');
+  img.src = 'data:image/jpeg;base64,' + base64;
+  img.title = w + 'x' + h;
+  els.console.appendChild(img);
+  els.console.scrollTop = els.console.scrollHeight;
+}
+
+/* ================= WS 连接 / 指数退避重连 / 9090 wake ================= */
+function setConnected(on) {
+  S.connected = on;
+  els.dot.className = on ? 'on' : 'off';
+  els.conn.disabled = on;
+  els.disc.disabled = !on;
+}
+function wsSend(obj) {
+  if (S.ws && S.ws.readyState === 1) { S.ws.send(JSON.stringify(obj)); return true; }
+  return false;
+}
+function connect() {
+  clearTimeout(S.reconnectTimer);
+  const url = els.addr.value.trim();
+  if (!url) return;
+  if (S.ws) { try { S.ws.close(); } catch(e){} }
+  appendLog('[SYS] 连接 ' + url + ' ...', 'sys');
+  let ws;
+  try { ws = new WebSocket(url); } catch(e) { appendLog('[SYS] 地址无效: ' + e.message, 'err'); return; }
+  ws.binaryType = 'arraybuffer';
+  S.ws = ws;
+  ws.onopen = () => {
+    S.attempts = 0;
+    setConnected(true);
+    appendLog('[SYS] 已连接', 'ok');
+    // 连接成功：记忆地址（9.11）
+    try { localStorage.setItem('ide_last_addr', els.addr.value.trim()); } catch(e) {}
+    wsSend({type:'capabilities'});
+  };
+  ws.onmessage = ev => {
+    if (ev.data instanceof ArrayBuffer) { handleBinary(ev.data); return; }
+    let msg; try { msg = JSON.parse(ev.data); } catch(e) { return; }
+    handleText(msg);
+  };
+  ws.onclose = ev => {
+    setConnected(false);
+    teardownStream();
+    appendLog('[SYS] 连接关闭 code=' + ev.code, 'warn');
+    scheduleReconnect();
+  };
+  ws.onerror = () => {};
+}
+function disconnect() {
+  S.manualClose = true;
+  clearTimeout(S.reconnectTimer);
+  if (S.ws) try { S.ws.close(); } catch(e){}
+  setConnected(false);
+  teardownStream();
+  appendLog('[SYS] 已手动断开', 'sys');
+}
+function scheduleReconnect() {
+  if (S.manualClose || !S.autoReconnect) { S.manualClose = false; return; }
+  const delay = Math.min(15000, 1000 * Math.pow(2, S.attempts++));
+  appendLog('[SYS] ' + (delay/1000) + 's 后自动重连（第 ' + S.attempts + ' 次），顺带探测 9090 wake ...', 'sys');
+  probeWake();
+  S.reconnectTimer = setTimeout(connect, delay);
+}
+/** 连不上 8080 时探测 9090：root daemon 收到即 am start 唤醒 app（no-cors，fire-and-forget） */
+function probeWake() {
+  const m = els.addr.value.trim().match(/^wss?:\/\/([^/:]+)/);
+  if (!m) return;
+  try {
+    fetch('http://' + m[1] + ':9090/wake', { mode:'no-cors', signal: AbortSignal.timeout ? AbortSignal.timeout(2000) : undefined })
+      .then(() => appendLog('[SYS] 9090 wake 探测已发出', 'sys'))
+      .catch(() => {});
+  } catch(e) {}
+}
+
+/* ================= 文本消息路由 ================= */
+function handleText(msg) {
+  const d = msg.data || {};
+  switch (msg.type) {
+    case 'hello':
+      S.clientId = d.clientId;
+      els.dev.textContent = (d.device_name || '') + ' · v' + (d.app_version || '?') + ' (' + d.app_version_code + ')';
+      appendLog('[SYS] 设备：' + (d.device_name || '?') + '，clientId=' + d.clientId, 'ok');
+      break;
+    case 'capabilities': renderCapabilities(d); break;
+    case 'log': appendLog(d.line == null ? '' : d.line); break;
+    case 'image': appendImage(d.base64, d.width, d.height); break;
+    case 'result': appendLog('[result] ' + JSON.stringify(d), 'ok'); break;
+    case 'stream_sync_result':
+      // 设备端无 h264 会话（中途调参顶掉/发送失败自杀/未启动）→ 重启会话自救，
+      // 而不是傻等 IDR。10s 窗口防循环；重启无效时仍由看门狗超时兜底切 jpeg。
+      if (d.requested === false && S.stream.active && S.stream.codec === 'h264') {
+        const now = performance.now();
+        if (now - S.stream.lastRestart > 10000) {
+          S.stream.lastRestart = now;
+          appendLog('[H264] 设备端无 h264 会话，自动重启投屏恢复画面…', 'warn');
+          resetDecoder();
+          streamStart();
+        }
+      }
+      break;
+    case 'error': appendLog('[error] ' + (d.msg || JSON.stringify(d)), 'err'); break;
+    case 'pong': break;
+    case 'push_result':
+      els.pushInfo.textContent = '推送完成：解压 ' + (d.unzipped||0) + ' 个文件' + ((d.failed&&d.failed.length) ? ('，失败 ' + d.failed.length) : '');
+      appendLog('[push_zip] 解压 ' + (d.unzipped||0) + ' 个文件' + ((d.failed&&d.failed.length) ? ('，失败: ' + d.failed.join(', ')) : ''), d.failed&&d.failed.length ? 'warn' : 'ok');
+      syncFileList();
+      break;
+    case 'stream_started':
+      S.stream.active = true;
+      S.stream.w = d.w; S.stream.h = d.h;
+      els.screen.width = d.w; els.screen.height = d.h;
+      els.hint.style.display = 'none';
+      appendLog('[投屏] 已开始 ' + S.stream.codec + ' @ ' + d.w + 'x' + d.h, 'ok');
+      S.stat = { frames:0, bytes:0, t0:performance.now() };
+      break;
+    case 'stream_rotate':
+      S.stream.w = d.w; S.stream.h = d.h;
+      els.screen.width = d.w; els.screen.height = d.h;
+      resetDecoder(); // 等新 avcC 重新 configure
+      appendLog('[投屏] 设备旋转 → ' + d.w + 'x' + d.h, 'warn');
+      break;
+    case 'inject_result':
+      if (!d.ok) appendLog('[注入] 失败' + (d.msg ? '：' + d.msg : ''), 'warn');
+      break;
+    case 'script_started':
+      appendLog('[脚本] 已提交主引擎执行: ' + d.path, 'ok');
+      break;
+    default: break;
+  }
+}
+
+/* ================= capabilities 面板 ================= */
+function renderCapabilities(d) {
+  S.cap = d;
+  const lines = [];
+  lines.push('注入通道: ' + (d.inject ? d.inject.mode : '?') + '（首次 inject_* 懒启动）');
+  if (d.stream) lines.push('投屏 codec: h264=' + d.stream.h264 + ', jpeg=' + d.stream.jpeg);
+  if (d.run_script !== undefined) lines.push('run_script: ' + d.run_script);
+  if (d.root_dir) lines.push('ROOT_DIR: ' + d.root_dir);
+  if (d.vision) lines.push('图色: find_image=' + d.vision.find_image + ', multi_color=' + d.vision.find_multi_color
+    + ', cmp_color=' + d.vision.cmp_color + ', ocr=' + d.vision.ocr);
+  if (d.plugins && d.plugins.length) lines.push('插件: ' + d.plugins.map(p => p.id + '@' + p.version).join(', '));
+  if (d.commands) lines.push('命令(' + d.commands.length + '): ' + d.commands.join(' '));
+  els.cap.textContent = lines.join('\n');
+  $('btnRun').disabled = !d.run_script;
+}
+
+/* ================= 投屏 binary 帧 =================
+   h264  → [4B seq][4B flag:0=avcC 配置集 1=视频帧][4B len][payload]
+   jpeg  → [4B seq][4B w][4B h][4B len][jpeg]   （大端） */
+function handleBinary(buf) {
+  const dv = new DataView(buf);
+  if (dv.byteLength < 12) return;
+  S.stat.frames++; S.stat.bytes += buf.byteLength;
+  if (S.stream.codec === 'jpeg') {
+    if (dv.byteLength < 16) return;
+    const len = dv.getUint32(12);
+    drawJpegFrame(new Uint8Array(buf, 16, len));
+  } else {
+    const flag = dv.getUint32(4);
+    const len = dv.getUint32(8);
+    if (12 + len > dv.byteLength) return;
+    const payload = new Uint8Array(buf, 12, len);
+    if (flag === 0) configureDecoder(payload);
+    else decodeH264(payload);
+  }
+}
+
+/* ---- JPEG：解码位图直绘（全兼容保底路径） ---- */
+function drawJpegFrame(bytes) {
+  const blob = new Blob([bytes], {type:'image/jpeg'});
+  createImageBitmap(blob).then(bmp => {
+    ctx2d.drawImage(bmp, 0, 0, els.screen.width, els.screen.height);
+    bmp.close(); // 释放位图内存
+  }).catch(() => {});
+}
+
+/* ---- H.264：WebCodecs VideoDecoder（硬解→软解→默认 逐级降级，全部失败自动切 jpeg） ----
+   设备端下发：flag=0 → avcC record（作 description）；flag=1 → AVCC 帧（每 NALU 前 4B 长度）。
+   codec string 从 SPS 前 3 字节（avcC[1..3]）构造 avc1.PPCCLL。 */
+function configureDecoder(avcC, startIdx) {
+  if (!('VideoDecoder' in window)) {
+    appendLog('[H264] 本浏览器不支持 WebCodecs，请切换 jpeg codec', 'err');
+    return;
+  }
+  S.stream.avcC = avcC; // 缓存，供 decoder error 时自动重建
+  const prof = avcC.length > 3 ? avcC[1] : 0x64, compat = avcC.length > 3 ? avcC[2] : 0x00, level = avcC.length > 3 ? avcC[3] : 0x28;
+  const hex = n => n.toString(16).toUpperCase().padStart(2, '0');
+  const codecStr = 'avc1.' + hex(prof) + hex(compat) + hex(level);
+  // 从上次成功的模式起步：GPU 硬解反复报错的浏览器不再每次重踩硬解（稳定性优先）
+  const idx0 = startIdx !== undefined ? startIdx : S.stream.lastGoodIdx;
+  appendLog('[H264] 收到 avcC 配置帧，解码模式从「' + DECODE_ATTEMPTS[idx0].tag + '」起步', 'sys');
+  tryBuildDecoder(codecStr, avcC, idx0);
+}
+/* 降级尝试链（GPU/驱动硬解兼容性是 Decoder error 的高发原因） */
+const DECODE_ATTEMPTS = [
+  { hw: 'prefer-hardware', tag: '硬解' },
+  { hw: 'prefer-software', tag: '软解' },
+  { hw: undefined, tag: '默认' },
+];
+function tryBuildDecoder(codecStr, avcC, idx) {
+  if (idx >= DECODE_ATTEMPTS.length) {
+    appendLog('[H264] 所有解码模式均不支持，自动切换 jpeg codec', 'err');
+    switchToJpeg();
+    return;
+  }
+  const conf = { codec: codecStr, description: avcC, optimizeForLatency: true };
+  if (DECODE_ATTEMPTS[idx].hw) conf.hardwareAcceleration = DECODE_ATTEMPTS[idx].hw;
+  resetDecoder();
+  const dec = new VideoDecoder({
+    output: frame => {
+      const c = els.screen;
+      if (c.width !== frame.displayWidth || c.height !== frame.displayHeight) {
+        c.width = frame.displayWidth; c.height = frame.displayHeight;
+      }
+      ctx2d.drawImage(frame, 0, 0, c.width, c.height);
+      frame.close(); // 必须关闭，防 GPU 内存泄漏
+    },
+    error: e => {
+      if (S.stream.decoder !== dec) return; // 旧解码器的迟到错误，忽略
+      appendLog('[H264] decoder error(' + DECODE_ATTEMPTS[S.stream.attemptIdx].tag + '): ' + e.message, 'err');
+      autoRebuildDecoder();
+    },
+  });
+  // GPU 进程卡死时 isConfigSupported 可能永不返回 → 3.5s 超时强制跳下一模式
+  let timeoutHandle;
+  const timeoutP = new Promise((_, rej) => { timeoutHandle = setTimeout(() => rej(new Error('预检超时 3.5s')), 3500); });
+  Promise.race([VideoDecoder.isConfigSupported(conf), timeoutP]).then(s => {
+    clearTimeout(timeoutHandle);
+    if (!s || !s.supported) {
+      appendLog('[H264] ' + DECODE_ATTEMPTS[idx].tag + ' 不支持该流（' + codecStr + '），尝试下一模式', 'warn');
+      tryBuildDecoder(codecStr, avcC, idx + 1);
+      return;
+    }
+    dec.configure(conf);
+    S.stream.decoder = dec;
+    S.stream.attemptIdx = idx;
+    S.stream.lastGoodIdx = idx; // 记住成功模式，下次会话/重建从这里起步
+    S.stream.hwAccel = DECODE_ATTEMPTS[idx].tag;
+    S.stream.waitKey = true; // 新解码器必须等 IDR 起解
+    S.stream.syncTries = 0;
+    sendStreamSync(); // 立即请求设备出 IDR：I 帧按提交帧数计，静止画面下可能拖很久
+    armKeyWatchdog();
+    appendLog('[H264] decoder 配置成功: ' + codecStr + '（' + DECODE_ATTEMPTS[idx].tag + '）', 'sys');
+  }).catch(e => {
+    clearTimeout(timeoutHandle);
+    try { dec.close(); } catch (e2) {} // 预检失败的 dec 未 configure 过，必须手动关闭防 GPU 资源泄漏
+    appendLog('[H264] ' + DECODE_ATTEMPTS[idx].tag + ' 预检失败/超时: ' + e.message + '，尝试下一模式', 'warn');
+    tryBuildDecoder(codecStr, avcC, idx + 1);
+  });
+}
+/** 解码器出错自动重建：沿尝试链逐级降级（修复：此前从头重试整链，
+ *  硬解持续报错时永远降不到软解 → 画面永久冻结）；全部失败自动切 jpeg */
+function autoRebuildDecoder() {
+  if (!S.stream.avcC) return;
+  const next = S.stream.attemptIdx + 1;
+  if (next < DECODE_ATTEMPTS.length) {
+    appendLog('[H264] ' + DECODE_ATTEMPTS[S.stream.attemptIdx].tag + '失败，自动降级' + DECODE_ATTEMPTS[next].tag + '…', 'warn');
+    configureDecoder(S.stream.avcC, next);
+  } else {
+    appendLog('[H264] 所有解码模式均失败，自动切换 jpeg 投屏…', 'warn');
+    switchToJpeg();
+  }
+}
+/* ---- IDR 同步：新解码器必须从 IDR 起解，但设备端 I 帧间隔按提交帧数计
+   （静止画面不合成新帧 → 等不到 IDR）。stream_sync 让编码器下一帧强制出 IDR
+   （MediaCodec request-sync-frame）；看门狗兜底：1.5s 无 IDR 重发，5 次仍无自动切 jpeg ---- */
+function sendStreamSync() {
+  if (S.stream.active) wsSend({type:'stream_sync', data:{}});
+}
+function armKeyWatchdog() {
+  clearTimeout(S.stream.keyTimer);
+  S.stream.keyTimer = setTimeout(() => {
+    if (!S.stream.active || !S.stream.waitKey || S.stream.codec !== 'h264') return;
+    if (++S.stream.syncTries > 5) {
+      appendLog('[H264] 多次请求 IDR 均未收到，自动切换 jpeg 投屏…', 'err');
+      switchToJpeg();
+      return;
+    }
+    // decoder 一直没配置成功（avcC 丢失 / GPU 预检卡死）→ 帧全被丢弃，重启会话重新拿 avcC
+    const dec = S.stream.decoder;
+    if (!dec || dec.state !== 'configured') {
+      const now = performance.now();
+      if (now - S.stream.lastRestart > 10000) {
+        S.stream.lastRestart = now;
+        appendLog('[H264] 解码器迟迟未配置成功（avcC 未达或预检卡死），重启投屏…', 'warn');
+        resetDecoder();
+        streamStart();
+        return;
+      }
+      armKeyWatchdog(); // 10s 窗口内继续观察
+      return;
+    }
+    appendLog('[H264] 等待 IDR 超时（第 ' + S.stream.syncTries + ' 次），重发 stream_sync', 'warn');
+    sendStreamSync();
+    armKeyWatchdog();
+  }, 1500);
+}
+function disarmKeyWatchdog() { clearTimeout(S.stream.keyTimer); S.stream.keyTimer = null; }
+function switchToJpeg() {
+  disarmKeyWatchdog();
+  resetDecoder();
+  $('codec').value = 'jpeg';
+  wsSend({type:'stream_stop', data:{}});
+  streamStart(); // 直接按面板参数重启（codec 已切 jpeg）
+}
+function resetDecoder() {
+  if (S.stream.decoder) { try { S.stream.decoder.close(); } catch(e){} S.stream.decoder = null; }
+}
+function teardownStream() {
+  S.stream.active = false;
+  disarmKeyWatchdog();
+  resetDecoder();
+  els.hint.style.display = '';
+}
+/** 解码一帧：扫 AVCC NALU 找首个 slice（type=5 IDR→key / type=1→delta，跳过 SPS/PPS/SEI 前缀） */
+function decodeH264(payload) {
+  const dec = S.stream.decoder;
+  if (!dec || dec.state !== 'configured') return;
+  let isKey = false;
+  const dv = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
+  let off = 0;
+  while (off + 4 <= payload.length) {
+    const len = dv.getUint32(off); off += 4;
+    if (len < 1 || off + len > payload.length) break;
+    const t = payload[off] & 0x1F;
+    if (t === 5) { isKey = true; break; }
+    if (t === 1) { isKey = false; break; }
+    off += len; // 7=SPS 8=PPS 6=SEI 等前缀继续找
+  }
+  // 新解码器必须从 IDR 起解：I 帧间隔 2s，最多丢 2s 的 delta 帧
+  if (S.stream.waitKey) {
+    if (!isKey) return;
+    S.stream.waitKey = false;
+    S.stream.syncTries = 0;
+    disarmKeyWatchdog(); // 收到 IDR 起解成功，同步看门狗解除
+  }
+  S.stream.tsUs += 33333; // 单调递增时间戳（微秒）
+  try {
+    dec.decode(new EncodedVideoChunk({ type: isKey ? 'key' : 'delta', timestamp: S.stream.tsUs, data: payload }));
+  } catch (e) {
+    appendLog('[H264] decode 失败（等待 I 帧）: ' + e.message, 'warn');
+  }
+}
+
+/* ================= 投屏控制 ================= */
+function streamStart() {
+  if (!S.connected) { appendLog('[投屏] 请先连接设备', 'warn'); return; }
+  S.stream.codec = $('codec').value;
+  const params = {
+    codec: S.stream.codec,
+    fps: +$('fps').value || 15,
+    bitrate: +$('bitrate').value || 1500000,
+    quality: +$('quality').value || 70,
+    scale: +$('scale').value || 1.0,
+  };
+  if (S.stream.codec === 'h264' && !('VideoDecoder' in window)) {
+    appendLog('[投屏] 本浏览器不支持 WebCodecs，已自动切换 jpeg', 'warn');
+    $('codec').value = 'jpeg'; S.stream.codec = 'jpeg'; params.codec = 'jpeg';
+  }
+  resetDecoder();
+  wsSend({type:'stream_start', data:params});
+  appendLog('[投屏] stream_start ' + JSON.stringify(params), 'sys');
+}
+function streamStop() {
+  wsSend({type:'stream_stop', data:{}});
+  S.stream.active = false;
+  resetDecoder();
+  els.hint.style.display = '';
+  appendLog('[投屏] 已请求停止', 'sys');
+}
+$('btnStart').onclick = streamStart;
+$('btnStop').onclick = streamStop;
+document.querySelectorAll('.preset').forEach(b => {
+  b.onclick = () => {
+    const p = b.dataset.p.split(',');
+    $('fps').value = p[0]; $('bitrate').value = p[1]; $('scale').value = p[2]; $('quality').value = p[3];
+    $('codec').value = 'h264';
+    if (S.connected) streamStart();
+  };
+});
+/* 帧率/带宽统计 */
+setInterval(() => {
+  if (!S.stream.active) { els.stats.textContent = '—'; return; }
+  const sec = (performance.now() - S.stat.t0) / 1000;
+  if (sec <= 0) return;
+  const fps = S.stat.frames / sec, kbps = (S.stat.bytes / sec / 1024).toFixed(1);
+  els.stats.textContent = S.stream.w + 'x' + S.stream.h + ' · ' + fps.toFixed(1) + ' fps · ' + kbps + ' KB/s';
+  S.stat = { frames:0, bytes:0, t0:performance.now() };
+}, 1000);
+
+/* ================= 鼠标 → inject_touch（等比换算设备绝对坐标） ================= */
+function toDevice(e) {
+  const r = els.screen.getBoundingClientRect();
+  const x = Math.round((e.clientX - r.left) * (S.stream.w / r.width));
+  const y = Math.round((e.clientY - r.top) * (S.stream.h / r.height));
+  return { x: Math.max(0, Math.min(S.stream.w - 1, x)), y: Math.max(0, Math.min(S.stream.h - 1, y)) };
+}
+function injectTouch(action, p) {
+  if (!S.stream.active) return;
+  wsSend({type:'inject_touch', data:{action, x:p.x, y:p.y}});
+}
+let mouseDownOnScreen = false; // 只跟踪在画布上开始的按下；否则 window 级 mouseup 会把页面任意点击都误发成 inject up
+els.screen.addEventListener('mousedown', e => {
+  if (e.button === 0) { mouseDownOnScreen = true; injectTouch('down', toDevice(e)); }
+});
+els.screen.addEventListener('mousemove', e => {
+  if (e.buttons === 1 && mouseDownOnScreen) injectTouch('move', toDevice(e));
+});
+window.addEventListener('mouseup',   e => {
+  if (e.button === 0 && mouseDownOnScreen) { mouseDownOnScreen = false; injectTouch('up', toDevice(e)); }
+});
+els.screen.addEventListener('contextmenu', e => e.preventDefault());
+/* 滚轮 → inject_swipe：向下滚 = 手指从下往上滑（查看更多内容） */
+els.screen.addEventListener('wheel', e => {
+  e.preventDefault();
+  if (!S.stream.active) return;
+  const p = toDevice(e);
+  const down = e.deltaY > 0, dist = 300;
+  const y1 = down ? p.y + dist : p.y - dist, y2 = down ? p.y - dist : p.y + dist;
+  const cy = v => Math.max(0, Math.min(S.stream.h - 1, v));
+  wsSend({type:'inject_swipe', data:{x1:p.x, y1:cy(y1), x2:p.x, y2:cy(y2), duration:200}});
+}, {passive:false});
+
+/* ================= 键盘 → inject_text / inject_key ================= */
+$('btnSendTxt').onclick = () => {
+  const t = $('txtIn').value;
+  if (!t) return;
+  wsSend({type:'inject_text', data:{text:t}});
+  $('txtIn').value = '';
+};
+$('txtIn').addEventListener('keydown', e => { if (e.key === 'Enter') $('btnSendTxt').click(); });
+document.querySelectorAll('kbd[data-key]').forEach(k => {
+  k.onclick = () => wsSend({type:'inject_key', data:{keycode:+k.dataset.key}});
+});
+
+/* ================= 脚本：push_zip 三段推送 + 文件树 + run/stop/pause/resume ================= */
+const CHUNK = 256 * 1024;
+function base64FromBytes(bytes) {
+  let bin = '';
+  const step = 0x8000; // String.fromCharCode 参数个数限制，分段拼接
+  for (let i = 0; i < bytes.length; i += step) {
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + step));
+  }
+  return btoa(bin);
+}
+async function pushZip(file) {
+  if (!S.connected) { appendLog('[推送] 请先连接设备', 'warn'); return; }
+  if (!/\.zip$/i.test(file.name)) { appendLog('[推送] 仅支持 .zip 工程包', 'warn'); return; }
+  const name = file.name.replace(/\.zip$/i, '');
+  const buf = new Uint8Array(await file.arrayBuffer());
+  const totalChunks = Math.max(1, Math.ceil(buf.length / CHUNK));
+  els.pushInfo.textContent = '推送中 ' + name + '（' + totalChunks + ' 块 / ' + (buf.length/1024).toFixed(0) + 'KB）...';
+  appendLog('[push_zip] start: ' + name + ', ' + totalChunks + ' 块, ' + buf.length + 'B', 'sys');
+  wsSend({type:'push_zip_start', data:{name, totalChunks, totalSize:buf.length}});
+  for (let i = 0; i < totalChunks; i++) {
+    const slice = buf.subarray(i * CHUNK, Math.min((i + 1) * CHUNK, buf.length));
+    // WS 消息天然有序；expectedMd5 留空 → 设备端跳过 MD5 校验（无 SubtleCrypto MD5）
+    wsSend({type:'push_zip_chunk', data:{name, index:i + 1, data:base64FromBytes(slice)}});
+    if (i % 8 === 7) { els.pushInfo.textContent = '推送中 ' + (i + 1) + '/' + totalChunks + ' ...'; await new Promise(r => setTimeout(r, 0)); }
+  }
+  wsSend({type:'push_zip_complete', data:{name, expectedMd5:''}});
+}
+els.dropZone.addEventListener('dragover', e => { e.preventDefault(); els.dropZone.classList.add('drag'); });
+els.dropZone.addEventListener('dragleave', () => els.dropZone.classList.remove('drag'));
+els.dropZone.addEventListener('drop', e => {
+  e.preventDefault(); els.dropZone.classList.remove('drag');
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) pushZip(f);
+});
+$('zipIn').addEventListener('change', e => { const f = e.target.files[0]; if (f) pushZip(f); e.target.value = ''; });
+
+function syncFileList() {
+  wsSend({type:'get_file_md5_list', data:{}});
+}
+function renderFileList(map) {
+  const paths = Object.keys(map).sort();
+  els.fileList.innerHTML = '';
+  if (!paths.length) {
+    els.fileList.innerHTML = '<div style="color:var(--dim);cursor:default">（设备 ide_push 为空，先推送 zip）</div>';
+    return;
+  }
+  paths.forEach(p => {
+    const div = document.createElement('div');
+    div.textContent = p;
+    div.title = p + ' · md5=' + map[p];
+    div.onclick = () => {
+      document.querySelectorAll('#fileList .sel').forEach(x => x.classList.remove('sel'));
+      div.classList.add('sel');
+      S.selFile = p;
+      appendLog('[脚本] 选中 ' + p, 'sys');
+    };
+    els.fileList.appendChild(div);
+  });
+}
+$('btnRun').onclick = () => {
+  if (!S.selFile) { appendLog('[脚本] 请先在列表中选择脚本入口（如 main.lua）', 'warn'); return; }
+  wsSend({type:'run_script', data:{path:'/' + S.selFile}});
+};
+$('btnStopS').onclick = () => wsSend({type:'stop_script', data:{}});
+$('btnPause').onclick = () => wsSend({type:'pause_script', data:{}});
+$('btnResume').onclick = () => wsSend({type:'resume_script', data:{}});
+$('btnSync').onclick = syncFileList;
+
+/* ================= 连接按钮 ================= */
+els.conn.onclick = () => { S.manualClose = false; S.attempts = 0; connect(); };
+els.disc.onclick = disconnect;
+els.auto.onclick = () => {
+  S.autoReconnect = !S.autoReconnect;
+  els.auto.textContent = '自动重连：' + (S.autoReconnect ? '开' : '关');
+};
+els.addr.addEventListener('keydown', e => { if (e.key === 'Enter') els.conn.click(); });
+
+/* 未投屏时画个占位 */
+appendLog('[SYS] AutoLua2 远程控制台就绪。填写 ws://设备IP:8080 后点「连接」。', 'sys');
+appendLog('[SYS] 提示：App 模式投屏需先在设备 app 内完成一次投影授权；root 模式免授权。', 'sys');
+</script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 模拟输入法通道（方案五）：IME 元信息声明，无设置页 -->
+<input-method xmlns:android="http://schemas.android.com/apk/res/android"
+    android:settingsActivity="" />
